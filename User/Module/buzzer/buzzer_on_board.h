@@ -18,6 +18,10 @@ namespace ega
 		// 阻塞式鸣响，内部使用Hal_Delay
 		static void singBlock(uint32_t Hz, uint32_t ms);
 
+		static void start(uint32_t Hz);
+
+		static void stop();
+
 	private:
 		// TODO 非阻塞式鸣响，需要结合定时器中断或者RTOS任务，没实现
 		static void sing(uint32_t Hz, uint32_t ms);

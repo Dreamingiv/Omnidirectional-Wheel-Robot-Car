@@ -38,4 +38,15 @@ namespace ega
 		HAL_Delay(ms);
 		pwm_->stop();
 	}
+
+	void BuzzerOnBoard::start(uint32_t Hz)
+	{
+		pwm_->setFrequency(Hz);
+		pwm_->start();
+	}
+
+	void BuzzerOnBoard::stop()
+	{
+		pwm_->stop();
+	}
 }
