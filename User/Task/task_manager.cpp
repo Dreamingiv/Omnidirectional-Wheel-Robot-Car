@@ -9,6 +9,7 @@
 #include "task.h"
 
 // =============================== 引入头文件 ===============================
+#include "buzzer_on_board.h"
 #include "driver_dwt.h"
 #include "driver_usb.h"
 #include "key_on_board.h"
@@ -37,6 +38,7 @@ void BSP_Init()
 	LEDOnBoard::init();
 	KeyOnBoard::init();
 	USB::init();
+	BuzzerOnBoard::init();
 }
 
 /**
