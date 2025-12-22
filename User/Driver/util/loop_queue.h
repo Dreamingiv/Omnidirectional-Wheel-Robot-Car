@@ -4,7 +4,7 @@
 #include <cstdint>
 #include <vector>
 
-namespace ega::util
+namespace ega::utils
 {
 	/**
 	 * @brief 简单环形队列(loop queue)模板

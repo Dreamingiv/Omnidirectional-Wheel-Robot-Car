@@ -9,7 +9,7 @@ namespace ega
 {
     void DWTInstance::CNT_Update()
     {
-        static util::bit_locker_h7 bit_lock;
+        static utils::bit_locker_h7 bit_lock;
         static uint32_t CYCCNT_LAST;
 
         // 如果获取锁失败，直接返回（非阻塞）
