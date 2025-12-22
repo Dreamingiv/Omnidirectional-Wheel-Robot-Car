@@ -11,7 +11,7 @@
 #include "driver_usart.h"
 #include "daemon.h"
 
-// 默认串口huart7
+// 默认串口huart6
 // 参考：VT13 手册 - 串口参数 921600/8N1/无校验/无流控；每 14ms 输出 21 字节帧；见"Remote Control Data" 章节
 // 帧格式(位偏移)：Header0(0..7)=0xA9, Header1(8..15)=0x53, CRC 在 152..167；其余见 .cpp 解析表
 namespace ega
@@ -109,7 +109,7 @@ namespace ega
     public:
         static VT13& getInstance();
 
-        // 初始化（默认使用 huart7，可按需改）
+        // 初始化（默认使用 huart6，可按需改）
         static bool init();
         static bool init(const UARTInstance::Config& config);
         static bool init(UART_HandleTypeDef* huart);

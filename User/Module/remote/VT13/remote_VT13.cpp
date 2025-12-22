@@ -42,7 +42,7 @@ namespace ega
     bool VT13::init()
     {
         UARTInstance::Config cfg{};
-        cfg.handle = &huart3;
+        cfg.handle = &huart6;
         cfg.tx_type = UARTInstance::DMA;
         cfg.rx_type = UARTInstance::DMA_IDLE;
         cfg.rx_size = 32; //必须大于VT13的FRAME_SIZE
