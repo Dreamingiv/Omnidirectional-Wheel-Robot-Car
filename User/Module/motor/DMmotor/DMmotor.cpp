@@ -149,25 +149,12 @@ namespace ega
 
         uint16_t tmp; // 用于暂存解析值,稍后转换成float数据,避免多次创建临时变量
 
-        //todo 初始化时可能立刻触发一次半圈检测，待解决
-
         //保存上一次位置
         dm_measure_.last_angle = measure_.angle_rotor;
 
         // 解析基本数据
         dm_measure_.id = data[0] & 0x0f;
         dm_measure_.state = (data[0] >> 4) & 0x0f;
-        // 注意！在本框架的语境下，有回调但是state不使能同样视为掉线。
-        // 这要求达妙电机tx_id推荐设置范围为0x01-0x0F
-        // 即txid 不能覆盖data[0]的高4位
-        if (dm_measure_.state == 0x01)
-        {
-            is_online_ = true;
-        }
-        else
-        {
-            is_online_ = false;
-        }
 
         tmp = static_cast<uint16_t>((data[1] << 8) | data[2]);
         dm_measure_.angle_rad = float(direction_)*utils::u16_to_float(tmp, -p_max_abs_, p_max_abs_, 16);
@@ -210,14 +197,17 @@ namespace ega
 
 
         // 计算总圈数（检测跨越 ±π 或 ±12.5 过零点）
-        float diff = measure_.angle_rotor - dm_measure_.last_angle;
-        if (diff > RAD_2_DEGREE * (p_max_abs_ - (-p_max_abs_)) / 2)
-        {
-            measure_.round--;
-        }
-        else if (diff < -RAD_2_DEGREE * (p_max_abs_ - (-p_max_abs_)) / 2)
-        {
-            measure_.round++;
+        // 电机刚刚上线时绕过半圈检测
+        if (is_online_){
+            float diff = measure_.angle_rotor - dm_measure_.last_angle;
+            if (diff > RAD_2_DEGREE * (p_max_abs_ - (-p_max_abs_)) / 2)
+            {
+                measure_.round--;
+            }
+            else if (diff < -RAD_2_DEGREE * (p_max_abs_ - (-p_max_abs_)) / 2)
+            {
+                measure_.round++;
+            }
         }
 
         // 计算累计位置
@@ -225,6 +215,18 @@ namespace ega
             float(measure_.round) * RAD_2_DEGREE * (p_max_abs_ - (-p_max_abs_)) + measure_.angle_rotor;
         // 计算输出轴总位置
         measure_.total_angle = measure_.total_angle_rotor / dm_reduction_radio_;
+
+        // 注意！在本框架的语境下，有回调但是state不使能同样视为掉线。
+        // 这要求达妙电机tx_id推荐设置范围为0x01-0x0F
+        // 即txid 不能覆盖data[0]的高4位
+        if (dm_measure_.state == 0x01)
+        {
+            is_online_ = true;
+        }
+        else
+        {
+            is_online_ = false;
+        }
 
         daemon_->reload();
     }

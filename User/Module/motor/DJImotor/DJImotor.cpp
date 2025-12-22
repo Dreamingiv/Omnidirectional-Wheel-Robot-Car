@@ -177,7 +177,6 @@ namespace ega
             return;
         }
 
-        //todo 初始化时可能立刻触发一次半圈检测，待解决
         dji_measure_.last_encoder = dji_measure_.encoder;
         dji_measure_.encoder = static_cast<uint16_t>(data[0] << 8) | data[1];
         //处理单圈正反
@@ -216,16 +215,20 @@ namespace ega
         // ---- 其他原逻辑保持不变 ----
         dji_measure_.temperature = data[6];
 
-        auto delta= dji_measure_.last_encoder - dji_measure_.encoder;
-        delta *= int(direction_);
-        if (delta > 4096)
-        {
-            measure_.round++;
+        // 电机刚刚上线时屏蔽半圈检测
+        if( is_online_){
+            auto delta= dji_measure_.last_encoder - dji_measure_.encoder;
+            delta *= int(direction_);
+            if (delta > 4096)
+            {
+                measure_.round++;
+            }
+            else if (delta < -4096)
+            {
+                measure_.round--;
+            }
         }
-        else if (delta < -4096)
-        {
-            measure_.round--;
-        }
+
 
         // 计算转子和输出轴的总位置
         float raw_total_angle_rotor = 360.0f * float(measure_.round)*float(direction_) + raw_angle_rotor;
@@ -248,7 +251,7 @@ namespace ega
 
     void DJIMotor::enableAll()
     {
-        for (int can = 0; can < 3; can++)
+        for (int can = 0; can < CAN_DEV_NUM; can++)
         {
             for (int i = 0; i < idx_[can]; i++)
             {
@@ -263,7 +266,7 @@ namespace ega
 
     void DJIMotor::disableAll()
     {
-        for (int can = 0; can < 3; can++)
+        for (int can = 0; can < CAN_DEV_NUM; can++)
         {
             for (int i = 0; i < idx_[can]; i++)
             {

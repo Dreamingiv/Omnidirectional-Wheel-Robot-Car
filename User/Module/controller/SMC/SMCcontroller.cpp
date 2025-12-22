@@ -4,7 +4,7 @@
 
 namespace ega
 {
-    SMCInstance::SMCInstance(const Config::SMCConfig& config) :
+    SMI_SISO::SMI_SISO(const Config::SMCConfig& config) :
         J_(config.J),
         lambda_(config.lambda),
         alpha_(config.alpha),
@@ -46,7 +46,7 @@ namespace ega
         return powf(base, exp);
     }
 
-    float SMCInstance::sgn(float x)
+    float SMI_SISO::sgn(float x)
     {
         if (x > 0.0f)
             return 1.0f;
@@ -55,7 +55,7 @@ namespace ega
         return 0.0f;
     }
 
-    float SMCInstance::sat(float x)
+    float SMI_SISO::sat(float x)
     {
         // 防止 phi_ 为 0
         if (phi_ == 0.0f)
@@ -63,12 +63,12 @@ namespace ega
         return tanhf(x / phi_);
     }
 
-    float SMCInstance::calculate(float target, float measure, float forward)
+    float SMI_SISO::calculate(float target, float measure, float forward)
     {
         // 1) 基本防护：dt_ 不能为 0
         if (dt_ == 0.0f)
         {
-            logger_printf("SMC dt_ == 0!\r\n");
+//            logger_printf("SMC dt_ == 0!\r\n");
             return 0.0f;
         }
 
@@ -111,7 +111,7 @@ namespace ega
         if (fabsf(error_) <= dead_band_)
         {
             s_ = e_dot + lambda_ * error_;
-            output_ = J_ * (omega_target_dot_dot_ - lambda_ * e_dot - k_ * s_ - eps_eff_ * sat(s_));
+            output_ = J_ * (omega_target_dot_dot_ - lambda_ * e_dot - k_ * s_ - eps_eff_ * sat(s_))+forward;
         }
         else
         {
@@ -121,13 +121,13 @@ namespace ega
                 denom = 1e-9f;
             s_ = e_dot + lambda_ * e_qp_;
             output_ = J_ * (omega_target_dot_dot_ - lambda_fast_ * e_qp_ * e_dot / denom - k_ * s_ - eps_eff_ *
-                sat(s_));
+                sat(s_))+forward;
         }
 
         // 检查 output 是否为 NaN/Inf
         if (std::isnan(output_) || std::isinf(output_))
         {
-            logger_printf("SMC output is nan/inf! output=%f, err=%f, edot=%f\r\n", output_, error_, e_dot);
+//            logger_printf("SMC output is nan/inf! output=%f, err=%f, edot=%f\r\n", output_, error_, e_dot);
 
             output_ = 0.0f;
         }
@@ -142,7 +142,7 @@ namespace ega
         return output_;
     }
 
-    void SMCInstance::clear()
+    void SMI_SISO::clear()
     {
         output_ = 0.0f;
         last_output_ = 0.0f;

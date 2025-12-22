@@ -9,7 +9,11 @@
 
 namespace ega
 {
-    class SMCInstance : public Controller
+    /**
+     * @brief SMC 单输入单输出滑模控制器
+     * @attention 不建议使用。为了兼容基类采用了位置微分出速度的形式。正规的滑模控制器最好是同时利用电机的angle和speed。
+     */
+    class SMI_SISO : public Controller
     {
         /* ====================== 1. 编译期常量 & 类型别名 ====================== */
 
@@ -19,7 +23,7 @@ namespace ega
 
         /* ====================== 4. 构造 / 析构 ====================== */
     public:
-        explicit SMCInstance(const Config::SMCConfig& config);
+        explicit SMI_SISO(const Config::SMCConfig& config);
 
         /* ====================== 5. 公共接口 ====================== */
     public:

@@ -9,7 +9,7 @@
 
 namespace ega
 {
-    class PIDInstance : public Controller
+    class PID : public Controller
     {
         /* ====================== 1. 编译期常量 & 类型别名 ====================== */
 
@@ -19,7 +19,7 @@ namespace ega
 
         /* ====================== 4. 构造 / 析构 ====================== */
     public:
-        explicit PIDInstance(const Config::PIDConfig& config);
+        explicit PID(const Config::PIDConfig& config);
 
         /* ====================== 5. 公共接口 ====================== */
     public:

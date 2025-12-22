@@ -10,7 +10,7 @@
 
 namespace ega
 {
-    PIDInstance::PIDInstance(const Config::PIDConfig &config)
+    PID::PID(const Config::PIDConfig &config)
         : kp_(config.kp), ki_(config.ki), kd_(config.kd),
             limit_integral_(config.limit_integral),
             limit_diff_(config.limit_diff), limit_error_(config.limit_error),
@@ -18,7 +18,7 @@ namespace ega
             use_ramp_(config.use_ramp), dt_(config.dt) {
     }
 
-    float PIDInstance::calculate(float target, float measure, float forward) {
+    float PID::calculate(float target, float measure, float forward) {
         measure_ = measure;
 
         if (use_ramp_)
@@ -62,7 +62,7 @@ namespace ega
         return output_;
     }
 
-    void PIDInstance::clear() {
+    void PID::clear() {
         output_ = 0.0f;
         iout_ = 0.0f;
         last_output_ = 0.0f;

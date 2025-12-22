@@ -15,7 +15,7 @@ namespace ega
         /* ====================== 1. 编译期常量 & 类型别名 ====================== */
     public:
         static constexpr size_t MAX_MOTORS = 8; // 每条can线上挂载的最大电机数量，用于静态资源分配
-        static constexpr size_t CAN_DEV_NUM = 3;
+        static constexpr size_t CAN_DEV_NUM = 2;
 
         static constexpr float RPM2DPS = 6.0f;
         static constexpr float ECD2DEGREE = 0.043945f;

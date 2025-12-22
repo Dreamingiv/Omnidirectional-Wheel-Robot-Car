@@ -10,9 +10,9 @@ namespace ega
     std::unique_ptr<Controller> Controller::create(Config config) {
         switch (config.type) {
         case Type::PID:
-            return std::make_unique<PIDInstance>(config.pid_config);
+            return std::make_unique<PID>(config.pid_config);
         case Type::SMC:
-            return std::make_unique<SMCInstance>(config.smc_config);
+            return std::make_unique<SMI_SISO>(config.smc_config);
         default:
             return nullptr;
         }
