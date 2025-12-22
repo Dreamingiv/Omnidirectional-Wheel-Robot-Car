@@ -7,7 +7,7 @@
 
 #include "main.h"
 
-namespace ega::util
+namespace ega::utils
 {
     /**
      * 绝对值、最大值、最小值、交换值等

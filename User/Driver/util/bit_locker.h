@@ -14,7 +14,7 @@
 //             LOGERROR(message);  \
 //     } while (0)
 
-namespace ega::util
+namespace ega::utils
 {
     /**
      * 一个适配H7处理器的互斥锁

@@ -49,21 +49,21 @@ namespace ega
 				.pwm_config_r = {
 					.handle = &htim5,
 					.channel = TIM_CHANNEL_3,
-					.type = PWMInstance::DIRECT,
+					.type = PWMInstance::Type::DIRECT,
 					.auto_start = true,
 					.callback = nullptr
 				},
 				.pwm_config_g = {
 					.handle = &htim5,
 					.channel = TIM_CHANNEL_2,
-					.type = PWMInstance::DIRECT,
+					.type = PWMInstance::Type::DIRECT,
 					.auto_start = true,
 					.callback = nullptr
 				},
 				.pwm_config_b = {
 					.handle = &htim5,
 					.channel = TIM_CHANNEL_1,
-					.type = PWMInstance::DIRECT,
+					.type = PWMInstance::Type::DIRECT,
 					.auto_start = true,
 					.callback = nullptr
 				}

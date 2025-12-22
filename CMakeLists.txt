@@ -1,7 +1,7 @@
 #此文件从模板自动生成! 请勿更改!
 set(CMAKE_SYSTEM_NAME Generic)
 set(CMAKE_SYSTEM_VERSION 1)
-cmake_minimum_required(VERSION 3.31)
+cmake_minimum_required(VERSION 3.30)
 
 # specify cross-compilers and tools
 set(CMAKE_C_COMPILER arm-none-eabi-gcc)
@@ -69,22 +69,22 @@ include_sub_directories_recursively(${CMAKE_SOURCE_DIR}/User)
 
 add_definitions(-DDEBUG -DUSE_HAL_DRIVER -DSTM32F407xx)
 
-#file(GLOB_RECURSE SOURCES "Startup/*.*" "Src/*.*" "Middlewares/*.*" "Drivers/*.*"
-## User source_path begin #
-#    "User/*.*"
-## User source_path end   #
-#)
+file(GLOB_RECURSE SOURCES "Startup/*.*" "Src/*.*" "Middlewares/*.*" "Drivers/*.*"
+# User source_path begin #
+    "User/*.*"
+# User source_path end   #
+)
 
-set(SOURCE_DIRS Drivers Inc Middlewares Src Startup User)
-foreach(dir ${SOURCE_DIRS})
-    include_sub_directories_recursively(${CMAKE_SOURCE_DIR}/${dir})
-
-    file(GLOB_RECURSE DIR_SOURCES
-            "${dir}/*.c" "${dir}/*.cpp" "${dir}/*.cxx"
-            "${dir}/*.s" "${dir}/*.S" "${dir}/*.asm"
-    )
-    list(APPEND SOURCES ${DIR_SOURCES})
-endforeach()
+#set(SOURCE_DIRS Drivers Inc Middlewares Src Startup User)
+#foreach(dir ${SOURCE_DIRS})
+#    include_sub_directories_recursively(${CMAKE_SOURCE_DIR}/${dir})
+#
+#    file(GLOB_RECURSE DIR_SOURCES
+#            "${dir}/*.c" "${dir}/*.cpp" "${dir}/*.cxx"
+#            "${dir}/*.s" "${dir}/*.S" "${dir}/*.asm"
+#    )
+#    list(APPEND SOURCES ${DIR_SOURCES})
+#endforeach()
 
 set(LINKER_SCRIPT ${CMAKE_SOURCE_DIR}/STM32F407IGHX_FLASH.ld)
 

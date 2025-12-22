@@ -178,8 +178,8 @@ namespace ega
 
         bool tx_use_fifo_; ///< 是否启用 FIFO 队列
         uint8_t tx_queue_mx_size_; ///< 队列最大长度
-        util::loop_queue<uint8_t*> tx_queue_; ///< 发送数据指针队列 // 注意此处只保存指针,module需自行维护数据块
-        util::loop_queue<uint16_t> tx_len_queue_; ///< 发送数据长度队列
+        utils::loop_queue<uint8_t*> tx_queue_; ///< 发送数据指针队列 // 注意此处只保存指针,module需自行维护数据块
+        utils::loop_queue<uint16_t> tx_len_queue_; ///< 发送数据长度队列
         Tx_Type tx_type_; ///< 发送模式
         TxCallback tx_callback_; ///< 发送回调
 

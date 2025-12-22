@@ -9,17 +9,38 @@
 #include "task.h"
 
 // =============================== 引入头文件 ===============================
+#include "buzzer_on_board.h"
+#include "daemon_task.h"
 #include "driver_dwt.h"
 #include "driver_usb.h"
+#include "imu_task.h"
 #include "key_on_board.h"
 #include "led_on_board.h"
 #include "logger.h"
+#include "motor_task.h"
+#include "robot_task.h"
 
 
 // 默认任务句柄
 static TaskHandle_t default_task_handle;
 
 // =============================== 静态创建任务参数 ===========================
+static TaskHandle_t daemon_task_handle_;
+static StackType_t  daemon_stack_buffer_[512];
+static StaticTask_t daemon_task_buffer_;
+
+static TaskHandle_t imu_task_handle_;
+static StackType_t  imu_stack_buffer_[2048];
+static StaticTask_t imu_task_buffer_;
+
+static TaskHandle_t motor_task_handle_;
+static StackType_t  motor_stack_buffer_[2048];
+static StaticTask_t motor_task_buffer_;
+
+static TaskHandle_t robot_task_handle_;
+static StackType_t  robot_stack_buffer_[4096];
+static StaticTask_t robot_task_buffer_;
+
 static TaskHandle_t test_task_handle_;
 static StackType_t  test_stack_buffer_[1024];
 static StaticTask_t test_task_buffer_;
@@ -33,10 +54,11 @@ void BSP_Init()
 	using namespace ega;
 	// /* 用户初始化内容，在进入默认任务之后被调用 */
 	DWTInstance::init(); //用于计时，默认168MHz
-	Logger::init(); //用于输出日志，默认使用串口1
+	Logger::init();      //用于输出日志，默认使用串口1
 	LEDOnBoard::init();
 	KeyOnBoard::init();
 	USB::init();
+	BuzzerOnBoard::init();
 }
 
 /**
@@ -78,29 +100,33 @@ void DefaultTask(void* pv)
 
 	taskENTER_CRITICAL(); //创建任务时关闭中断
 	//判断任务是否创建成功，一旦存在创建不成功的任务，xReturn置0
-	// xReturn &= xTaskCreate(
-	//     DaemonTask,
-	//     "守护进程",
-	//     512,
-	//     NULL,
-	//     6,
-	//     NULL) == pdPASS;
-	//
-	// xReturn &= xTaskCreate(
-	//     IMUTask,
-	//     "陀螺仪",
-	//     2048, //必须够大，小了会卡死
-	//     NULL,
-	//     5,
-	//     NULL) == pdPASS;
-	//
-	// xReturn &= xTaskCreate(
-	//     MotorTask,
-	//     "电机控制",
-	//     2048,
-	//     NULL,
-	//     4,
-	//     NULL) == pdPASS;
+
+	daemon_task_handle_ = xTaskCreateStatic(
+		DaemonTask,
+		"DaemonTask",
+		512,
+		nullptr,
+		6,
+		daemon_stack_buffer_,
+		&daemon_task_buffer_);
+
+	imu_task_handle_ = xTaskCreateStatic(
+		IMUTask,
+		"IMUTask",
+		2048,
+		nullptr,
+		5,
+		imu_stack_buffer_,
+		&imu_task_buffer_);
+
+	motor_task_handle_ = xTaskCreateStatic(
+		MotorTask,
+		"MotorTask",
+		2048,
+		nullptr,
+		5,
+		motor_stack_buffer_,
+		&motor_task_buffer_);
 	//
 	// xReturn &= xTaskCreate(
 	//     RobotTask,
@@ -110,28 +136,31 @@ void DefaultTask(void* pv)
 	//     4,
 	//     NULL) == pdPASS;
 	//
-	// xReturn &= xTaskCreate(
-	// 	TestTask,
-	// 	"测试任务",
-	// 	2048,
-	// 	NULL,
-	// 	4,
-	// 	NULL) == pdPASS;
+	robot_task_handle_ = xTaskCreateStatic(
+		RobotTask,
+		"RobotTask",
+		4096,
+		nullptr,
+		4,
+		robot_stack_buffer_,
+		&robot_task_buffer_);
+
 	test_task_handle_ = xTaskCreateStatic(
 		TestTask,
 		"TestTask",
 		1024,
 		nullptr,
-		1,
+		4,
 		test_stack_buffer_,
 		&test_task_buffer_);
+
 	taskEXIT_CRITICAL();
 
 	//如果存在任务没有被分配成功，直接进入死循环
-	if (xReturn != pdPASS)
-	{
-		Error_Handler();
-	}
+	// if (xReturn != pdPASS)
+	// {
+	// 	Error_Handler();
+	// }
 	vTaskDelete(default_task_handle);
 }
 
