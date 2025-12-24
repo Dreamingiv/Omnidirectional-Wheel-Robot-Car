@@ -107,7 +107,7 @@ namespace ega
         static inline void SBUSCallback(uint8_t* data, uint16_t size);
 
         static inline SwitchStatus getSwitchStatus(int16_t val);
-        void parseSBUS(const uint8_t* data, uint16_t size); //解析遥控器协议
+        void parseFrame(const uint8_t* data, uint16_t size); //解析遥控器协议
         // void                   parseKeys(uint16_t raw_keys);            //键盘比较特殊，单独拿出来一个函数
 
         void offlineCallback();

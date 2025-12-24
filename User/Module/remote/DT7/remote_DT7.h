@@ -202,7 +202,7 @@ namespace ega
 	private:
 	    bool checkRockerValid();
 
-	    void parseDBUS(uint8_t *data, uint16_t size); //解析遥控器协议
+	    void parseFrame(uint8_t *data, uint16_t size); //解析遥控器协议
 	    void parseKeys(uint16_t raw_keys);//键盘比较特殊，单独拿出来一个函数
 
 	    void offlineCallback();

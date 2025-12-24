@@ -66,7 +66,7 @@ namespace ega
     }
 
     void FS_I6X::SBUSCallback(uint8_t *data, uint16_t size) {
-        getInstance().parseSBUS(data, size);
+        getInstance().parseFrame(data, size);
     }
 
     FS_I6X::SwitchStatus FS_I6X::getSwitchStatus(int16_t val) {
@@ -82,7 +82,7 @@ namespace ega
         }
     }
 
-    void FS_I6X::parseSBUS(const uint8_t *data, uint16_t size) {
+    void FS_I6X::parseFrame(const uint8_t *data, uint16_t size) {
         if (data[0] != 0x0F || data[24] != 0x00) {
             return;
         }
