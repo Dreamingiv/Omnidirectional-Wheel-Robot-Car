@@ -62,10 +62,10 @@ namespace ega
     }
 
     void DT7::DBUSCallback(uint8_t *data, uint16_t size) {
-        getInstance().parseDBUS(data, size);
+        getInstance().parseFrame(data, size);
     }
 
-    void DT7::parseDBUS(uint8_t *data, uint16_t size) {
+    void DT7::parseFrame(uint8_t *data, uint16_t size) {
         if (size != DBUS_FRAME_SIZE) {
             frame_valid_ = false;
             return;
