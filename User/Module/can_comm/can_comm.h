@@ -122,7 +122,7 @@ namespace ega
     CanComm<T>::CanComm(const Config& config)
         : //tx_id_(config.tx_id),rx_id_(config.rx_id),
         can_instance_({
-            .can_handle = config.can_handle,
+            .handle = config.handle,
             .tx_id = config.tx_id,
             .rx_id = config.rx_id,
             // ✅ 使用 lambda 捕获 this，将底层 C 风格回调转发给成员函数
@@ -223,7 +223,7 @@ namespace ega
                 {
                     if (rx_callback_)
                     {
-                        app_callback_(*reinterpret_cast<T*>(rx_buffer_));
+                        rx_callback_(*reinterpret_cast<T*>(rx_buffer_));
                     }
                 }
                 rx_state_ = RxState::IDLE;
@@ -264,7 +264,7 @@ namespace ega
             {
                 if (rx_callback_)
                 {
-                    app_callback_(*reinterpret_cast<T*>(rx_buffer_));
+                    rx_callback_(*reinterpret_cast<T*>(rx_buffer_));
                 }
             }
             // 无论校验成功与否，重置状态
