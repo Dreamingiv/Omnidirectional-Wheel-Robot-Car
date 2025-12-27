@@ -20,8 +20,8 @@ namespace ega
         // 初始化基类参数
         initParams(config);
 
-        //对于达妙电机，最大effort值为最大扭矩值
-        effort_max_abs_=t_max_abs_;
+        // 对于达妙电机，最大effort值为最大扭矩值
+        effort_max_abs_ = t_max_abs_;
 
         // 实例化can
         CANInstance::Config can_cfg = {.handle = config.can_config.handle,
@@ -114,7 +114,8 @@ namespace ega
         // 与基类不同的是，主动发出一帧命令使能电机
         // 使用can驱动中的msg类型
         sendDMModeCommand(ModeCommand::CLEAR_ERROR); // 设置了can timeout的需要先清除错误
-        // 等待200us，确保电机状态更新 todo 需要验证这里会不会造成阻塞等待？
+        // 等待200us，确保电机状态更新
+        // 因为理论上enable只在遥控器初次上电时触发一次，阻塞延迟200us暂时认为没影响。当然有更好的办法是最好的
         DWTInstance::delay(0.0002);
         sendDMModeCommand(ModeCommand::MOTOR_MODE);
 
@@ -149,7 +150,8 @@ namespace ega
 
         uint16_t tmp; // 用于暂存解析值,稍后转换成float数据,避免多次创建临时变量
 
-        //保存上一次位置
+
+        // 保存上一次位置
         dm_measure_.last_angle = measure_.angle_rotor;
 
         // 解析基本数据
@@ -157,34 +159,34 @@ namespace ega
         dm_measure_.state = (data[0] >> 4) & 0x0f;
 
         tmp = static_cast<uint16_t>((data[1] << 8) | data[2]);
-        dm_measure_.angle_rad = float(direction_)*utils::u16_to_float(tmp, -p_max_abs_, p_max_abs_, 16);
+        dm_measure_.angle_rad = float(direction_) * utils::u16_to_float(tmp, -p_max_abs_, p_max_abs_, 16);
         tmp = static_cast<uint16_t>((data[3] << 4) | data[4] >> 4);
-        dm_measure_.speed_rads = float(direction_)*utils::u16_to_float(tmp, -v_max_abs_, v_max_abs_, 12);
+        dm_measure_.speed_rads = float(direction_) * utils::u16_to_float(tmp, -v_max_abs_, v_max_abs_, 12);
         tmp = static_cast<uint16_t>(((data[4] & 0x0f) << 8) | data[5]);
-        measure_.torque = float(direction_)*utils::u16_to_float(tmp, -t_max_abs_, t_max_abs_, 12);
+        measure_.torque = float(direction_) * utils::u16_to_float(tmp, -t_max_abs_, t_max_abs_, 12);
 
-        //如果提供了转矩常数，计算电流
+        // 如果提供了转矩常数，计算电流
 
-//        // ---- 修正版平滑滤波（防止FPU下溢） ----
-//        constexpr float EPS = 1e-6f;
-//        // 读取原始速度和力矩，单位保持rad
-//        tmp = static_cast<uint16_t>((data[3] << 4) | data[4] >> 4);
-//        auto raw_speed_rads = utils::u16_to_float(tmp, -v_max_abs_, v_max_abs_, 12);
-//        tmp = static_cast<uint16_t>(((data[4] & 0x0f) << 8) | data[5]);
-//        auto raw_torque = utils::u16_to_float(tmp, -t_max_abs_, t_max_abs_, 12);
-//
-//        float filtered_velocity =
-//            (1.0f - SPEED_SMOOTH_COEF) * dm_measure_.speed_rads + SPEED_SMOOTH_COEF * (float)raw_speed_rads;
-//        float filtered_torque =
-//            (1.0f - TORQUE_SMOOTH_COEF) * float(measure_.torque) + TORQUE_SMOOTH_COEF * (float)raw_torque;
-//        // 下溢保护：若结果极小则直接归零
-//        if (fabsf(filtered_velocity) < EPS)
-//            filtered_velocity = 0.0f;
-//        if (fabsf(filtered_torque) < EPS)
-//            filtered_torque = 0.0f;
-//
-//        dm_measure_.speed_rads = filtered_velocity;
-//        measure_.torque = filtered_torque;
+        //        // ---- 修正版平滑滤波（防止FPU下溢） ----
+        //        constexpr float EPS = 1e-6f;
+        //        // 读取原始速度和力矩，单位保持rad
+        //        tmp = static_cast<uint16_t>((data[3] << 4) | data[4] >> 4);
+        //        auto raw_speed_rads = utils::u16_to_float(tmp, -v_max_abs_, v_max_abs_, 12);
+        //        tmp = static_cast<uint16_t>(((data[4] & 0x0f) << 8) | data[5]);
+        //        auto raw_torque = utils::u16_to_float(tmp, -t_max_abs_, t_max_abs_, 12);
+        //
+        //        float filtered_velocity =
+        //            (1.0f - SPEED_SMOOTH_COEF) * dm_measure_.speed_rads + SPEED_SMOOTH_COEF * (float)raw_speed_rads;
+        //        float filtered_torque =
+        //            (1.0f - TORQUE_SMOOTH_COEF) * float(measure_.torque) + TORQUE_SMOOTH_COEF * (float)raw_torque;
+        //        // 下溢保护：若结果极小则直接归零
+        //        if (fabsf(filtered_velocity) < EPS)
+        //            filtered_velocity = 0.0f;
+        //        if (fabsf(filtered_torque) < EPS)
+        //            filtered_torque = 0.0f;
+        //
+        //        dm_measure_.speed_rads = filtered_velocity;
+        //        measure_.torque = filtered_torque;
 
         dm_measure_.temperature_mos = (float)data[6];
         dm_measure_.temperature_rotor = (float)data[7];
@@ -197,8 +199,9 @@ namespace ega
 
 
         // 计算总圈数（检测跨越 ±π 或 ±12.5 过零点）
-        // 电机刚刚上线时绕过半圈检测
-        if (is_online_){
+        // 如果此时电机刚刚上线，跳过半圈检测
+        if (is_online_)
+        {
             float diff = measure_.angle_rotor - dm_measure_.last_angle;
             if (diff > RAD_2_DEGREE * (p_max_abs_ - (-p_max_abs_)) / 2)
             {
@@ -209,6 +212,7 @@ namespace ega
                 measure_.round++;
             }
         }
+
 
         // 计算累计位置
         measure_.total_angle_rotor =
@@ -241,9 +245,9 @@ namespace ega
         }
 
         // 将计算好的参考值放进邮箱
-        p_des_buf_ = float(direction_)*utils::limit(position, -p_max_abs_, p_max_abs_);
-        v_des_buf_ = float(direction_)*utils::limit(velocity, -v_max_abs_, v_max_abs_);
-        t_des_buf_ = float(direction_)*utils::limit(torque, -t_max_abs_, t_max_abs_);
+        p_des_buf_ = float(direction_) * utils::limit(position, -p_max_abs_, p_max_abs_);
+        v_des_buf_ = float(direction_) * utils::limit(velocity, -v_max_abs_, v_max_abs_);
+        t_des_buf_ = float(direction_) * utils::limit(torque, -t_max_abs_, t_max_abs_);
         kp_buf_ = utils::limit(kp, KP_MIN, KP_MAX);
         kd_buf_ = utils::limit(kd, KD_MIN, KD_MAX);
 
@@ -256,7 +260,14 @@ namespace ega
         if (!isEnabled())
             return;
         if (!isEffortSet())
+        {
+            /* 达妙电机是发一帧收一帧形式
+               当effort未设置时，发送一帧使能命令，维持电机can反馈，防止触发掉线
+               如果effort已经设置，则直接发送电机effort命令，不再发使能 */
+            sendDMModeCommand(ModeCommand::MOTOR_MODE);
             return;
+        }
+
 
         msg_t mailbox{};
 
