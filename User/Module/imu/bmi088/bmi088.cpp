@@ -34,7 +34,7 @@ BMI088::BMI088(const Config& config) :
 
     // 初始化陀螺仪外设
     SPIInstance::Config gyro_spi_cfg({
-        .handle = &hspi2,
+        .handle = &hspi1,
         .cs_port = CS1_GYRO_GPIO_Port,
         .cs_pin = CS1_GYRO_Pin,
         .effect_pin_state_ = GPIO_PIN_RESET,

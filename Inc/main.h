@@ -61,8 +61,8 @@ void Error_Handler(void);
 /* Private defines -----------------------------------------------------------*/
 #define MAG_RST_Pin GPIO_PIN_6
 #define MAG_RST_GPIO_Port GPIOG
-#define IMU_TEMP_Pin GPIO_PIN_6
-#define IMU_TEMP_GPIO_Port GPIOF
+#define IMU_HEAT_LOCK_LOW_Pin GPIO_PIN_6
+#define IMU_HEAT_LOCK_LOW_GPIO_Port GPIOF
 #define LED_R_Pin GPIO_PIN_12
 #define LED_R_GPIO_Port GPIOH
 #define INT_MAG_Pin GPIO_PIN_3
