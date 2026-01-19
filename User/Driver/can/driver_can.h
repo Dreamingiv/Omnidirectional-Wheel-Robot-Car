@@ -56,9 +56,11 @@ namespace ega
         void setDataLength(uint8_t length);
         bool send(const msg_t& msg, uint16_t block_timeout_us = 150); // 如果FIFO满，允许超时150us
         // 测试用的方法，严格来说该方法会破坏实例的封装性
-        bool send(uint32_t target_id, const uint8_t* data, uint8_t length, uint16_t block_timeout_us = 300);
+        bool send(uint32_t target_id, const msg_t &msg, uint16_t block_timeout_us = 300);
 
         [[nodiscard]] CAN_HandleTypeDef* getHandle() const { return handle_; }
+
+        uint8_t getHandleIndex() const { return getHandle() == &hcan1 ? 0 : getHandle() == &hcan2 ? 1 : 2; }
 
         /* ====================== 6. 受保护接口 ====================== */
 

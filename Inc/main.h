@@ -54,7 +54,7 @@ void Error_Handler(void);
 
 /* USER CODE BEGIN EFP */
 #ifdef  USE_USER_MAIN
-  void MXMainInit();
+  void MX_Main_Init();
 #endif
 /* USER CODE END EFP */
 

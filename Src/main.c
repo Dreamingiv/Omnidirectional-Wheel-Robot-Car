@@ -81,7 +81,7 @@ int main(void)
   /* USER CODE BEGIN 1 */
 #endif
 #ifdef USE_USER_MAIN
-void MXMainInit()
+void MX_Main_Init()
 {
 #endif
   /* USER CODE END 1 */

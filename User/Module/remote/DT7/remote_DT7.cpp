@@ -2,221 +2,293 @@
 #include "logger.h"
 namespace ega
 {
-    // 单例获取
-    DT7 &DT7::getInstance() {
-        static DT7 instance;
-        return instance;
-    }
-
-    // 使用默认配置初始化（默认串口 5）
-    bool DT7::init() {
-        UARTInstance::Config config;
-        config.handle = &huart3;       // 默认串口
-        config.tx_type = UARTInstance::DMA;
-        config.rx_type = UARTInstance::DMA_IDLE;
-        config.rx_size = 32;//必须大于DT7的DBUS_FRAME_SIZE
-        config.rx_callback = DBUSCallback;
-
-        return getInstance().doInit(config);
-    }
-
-    // 使用外部配置初始化
-    bool DT7::init(const UARTInstance::Config &config) {
-        return getInstance().doInit(config);
-    }
-
-    // 实际初始化逻辑
-    bool DT7::doInit(const UARTInstance::Config &config) {
-        if (inited_) {
-            return false; // 防止重复初始化
+    // ================ Bit 读取小工具 ================
+    static uint32_t rd_bits(const uint8_t* buf, uint16_t bit_off, uint8_t bit_len)
+    {
+        // 从 bit_off 开始读取 bit_len 位（最多 32 位），LSB-first 按自然位拼接
+        uint32_t v = 0;
+        for (uint8_t i = 0; i < bit_len; ++i)
+        {
+            uint16_t bit = bit_off + i;
+            uint8_t byte_idx = bit >> 3;
+            uint8_t bit_idx = bit & 0x7;
+            uint8_t bit_val = (buf[byte_idx] >> bit_idx) & 0x1;
+            v |= (static_cast<uint32_t>(bit_val) << i);
         }
-        uart_instance_.emplace(config);  // 注册到实例列表
-        uart_instance_->startReceive();           // 启动接收
-        // 注册daemon
-        daemon_.emplace(Daemon::Config{
-                .reload_count = 10,                         // 超时100ms认为遥控器丢失
-                .init_count   = 10,                         // 可选：上电初始延时，按需调整
-                .callback     = [this]() { this->offlineCallback(); }
-        });
-
-        inited_ = true;
-        return true;
+        return v;
     }
 
-    void DT7::stop() {
-        auto & ins = getInstance();
-        if (!ins.inited_) {
-            return; // 防止初始化前调用
+    DT7::DT7(const UARTInstance::Config& config)
+    {
+        uart_instance_.emplace(config);
+        uart_instance_->startReceive();
+
+        daemon_.emplace(Daemon::Config{.reload_time_ms = 100, // 超时100ms认为遥控器丢失
+                                       .init_time_ms = 100, // 可选：上电初始延时，按需调整
+                                       .callback = [this]() { this->offlineCallback(); }});
+    }
+
+    DT7::DT7() :
+        DT7(UARTInstance::Config{
+            .handle = &huart3,
+            .tx_type = UARTInstance::DMA,
+            .rx_type = UARTInstance::DMA_IDLE,
+            .rx_callback = [this](uint8_t* data, uint16_t size) { this->DBUSCallback(data, size); },
+            .rx_size = 32,
+        })
+    { /* 委托构造函数，不需要额外代码 */
+    }
+
+    void DT7::stop()
+    {
+        this->is_online_ = false;
+        this->is_frame_valid_ = false;
+        this->uart_instance_->stopReceive();
+    }
+
+    void DT7::start() { this->uart_instance_->startReceive(); }
+
+    void DT7::DBUSCallback(uint8_t* data, uint16_t size) { this->parseFrame(data, size); }
+
+    DT7::RCSwitchState DT7::convertSwitchState(int16_t val)
+    {
+        switch (val)
+        {
+        case 1:
+            return RCSwitchState::UP;
+        case 2:
+            return RCSwitchState::DOWN;
+        case 3:
+            return RCSwitchState::MIDDLE;
+        default:
+            return RCSwitchState::UP;
         }
-        ins.is_online_ = false;
-        ins.frame_valid_ = false;
-        ins.uart_instance_->stopReceive();
     }
 
-    void DT7::start() {
-        auto & ins = getInstance();
-        if (!ins.inited_) {
-            return; // 防止初始化前调用
-        }
-        ins.uart_instance_->startReceive();
-    }
-
-    void DT7::DBUSCallback(uint8_t *data, uint16_t size) {
-        getInstance().parseFrame(data, size);
-    }
-
-    void DT7::parseFrame(uint8_t *data, uint16_t size) {
-        if (size != DBUS_FRAME_SIZE) {
-            frame_valid_ = false;
+    void DT7::parseFrame(const uint8_t* data, uint16_t size)
+    {
+        if (size != DBUS_FRAME_SIZE)
+        {
+            is_frame_valid_ = false;
             return;
         }
-        daemon_->reload();//如果接收到大小正确的数据就喂狗
+        daemon_->reload(); // 如果接收到大小正确的数据就喂狗
         is_online_ = true;
+        // 解包
+        auto ch0 = static_cast<int16_t>(rd_bits(data, 0, 11));
+        auto ch1 = static_cast<int16_t>(rd_bits(data, 11, 11));
+        auto ch2 = static_cast<int16_t>(rd_bits(data, 22, 11));
+        auto ch3 = static_cast<int16_t>(rd_bits(data, 33, 11));
 
+        auto s1 = static_cast<uint8_t>(rd_bits(data, 44, 2));
+        auto s2 = static_cast<uint8_t>(rd_bits(data, 46, 2));
+
+        auto mx = static_cast<int16_t>(rd_bits(data, 48, 16));
+        auto my = static_cast<int16_t>(rd_bits(data, 64, 16));
+        auto mz = static_cast<int16_t>(rd_bits(data, 80, 16));
+
+        auto mb_l = static_cast<uint8_t>(rd_bits(data, 96, 8));
+        auto mb_r = static_cast<uint8_t>(rd_bits(data, 104, 8));
+
+        auto raw_keys = static_cast<uint16_t>(rd_bits(data, 112, 16));
+
+        auto dial = static_cast<int16_t>(rd_bits(data, 128, 16));
         // 摇杆
-        rc_current_.rc.rocker_r_h = ((data[0] | (data[1] << 8)) & 0x07FF) - RC_CH_VALUE_OFFSET;
-        rc_current_.rc.rocker_r_v = (((data[1] >> 3) | (data[2] << 5)) & 0x07FF) - RC_CH_VALUE_OFFSET;
-        rc_current_.rc.rocker_l_h = (((data[2] >> 6) | (data[3] << 2) | (data[4] << 10)) & 0x07FF) - RC_CH_VALUE_OFFSET;
-        rc_current_.rc.rocker_l_v = (((data[4] >> 1) | (data[5] << 7)) & 0x07FF) - RC_CH_VALUE_OFFSET;
-        rc_current_.rc.dial = ((data[16] | (data[17] << 8)) & 0x07FF) - RC_CH_VALUE_OFFSET; //返回的数据很奇怪？
-        if (!checkRockerValid()) {
-            frame_valid_ = false;
+        rc_current_.rc.rocker_r_h = ch0 - RC_CH_VALUE_OFFSET;
+        rc_current_.rc.rocker_r_v = ch1 - RC_CH_VALUE_OFFSET;
+        rc_current_.rc.rocker_l_h = ch2 - RC_CH_VALUE_OFFSET;
+        rc_current_.rc.rocker_l_v = ch3 - RC_CH_VALUE_OFFSET;
+
+        rc_current_.rc.dial = dial - RC_CH_VALUE_OFFSET; // 返回的数据很奇怪？
+        if (!checkRockerValid())
+        {
+            is_frame_valid_ = false;
             return;
         }
-        frame_valid_ = true;
+        is_frame_valid_ = true;
 
         // 开关
-        rc_current_.rc.sw_right = (data[5] >> 4) & 0x03;
-        rc_current_.rc.sw_left = ((data[5] >> 4) & 0x0C) >> 2;
+        rc_current_.rc.sw_right = convertSwitchState(s1);
+        rc_current_.rc.sw_left = convertSwitchState(s2);
 
         // 鼠标
-        rc_current_.mouse.x = (data[6] | (data[7] << 8));
-        rc_current_.mouse.y = (data[8] | (data[9] << 8));
-        rc_current_.mouse.z = (data[10] | (data[11] << 8));
-        rc_current_.mouse.press_l[MOUSE_PRESS] = data[12];
-        rc_current_.mouse.press_r[MOUSE_PRESS] = data[13];
+        rc_current_.mouse.x = mx;
+        rc_current_.mouse.y = my;
+        rc_current_.mouse.z = mz;
+        rc_current_.mouse.press_l[static_cast<uint8_t>(MouseState::PRESSED)] = mb_l;
+        rc_current_.mouse.press_r[static_cast<uint8_t>(MouseState::PRESSED)] = mb_r;
         // 检测点击（上升沿检测）
-        rc_current_.mouse.press_l[MOUSE_CLICK] =
-                (rc_current_.mouse.press_l[MOUSE_PRESS] == 1 && rc_last_.mouse.press_l[MOUSE_PRESS] == 0) ? 1 : 0;
-        rc_current_.mouse.press_r[MOUSE_CLICK] =
-                (rc_current_.mouse.press_r[MOUSE_PRESS] == 1 && rc_last_.mouse.press_r[MOUSE_PRESS] == 0) ? 1 : 0;
+        rc_current_.mouse.press_l[static_cast<uint8_t>(MouseState::CLICKED)] =
+            (rc_current_.mouse.press_l[static_cast<uint8_t>(MouseState::PRESSED)] == 1 &&
+             rc_last_.mouse.press_l[static_cast<uint8_t>(MouseState::PRESSED)] == 0)
+            ? 1
+            : 0;
+        rc_current_.mouse.press_r[static_cast<uint8_t>(MouseState::CLICKED)] =
+            (rc_current_.mouse.press_r[static_cast<uint8_t>(MouseState::PRESSED)] == 1 &&
+             rc_last_.mouse.press_r[static_cast<uint8_t>(MouseState::PRESSED)] == 0)
+            ? 1
+            : 0;
 
         // 键盘
-        uint16_t raw_keys = (uint16_t)(data[14] | (data[15] << 8));
-        parseKeys(raw_keys);
+        rc_current_.keys[static_cast<uint8_t>(KeyState::PRESSED)].raw = raw_keys;
+
+        rc_current_.keys[static_cast<uint8_t>(KeyState::CLICKED)].raw =
+            rc_current_.keys[static_cast<uint8_t>(KeyState::PRESSED)].raw &
+            (~rc_last_.keys[static_cast<uint8_t>(KeyState::PRESSED)].raw);
 
         // 保存历史
         rc_last_ = rc_current_;
-
     }
 
-    void DT7::parseKeys(uint16_t raw_keys) {
-        // 1. 保存当前按键状态
-        *(uint16_t *)&rc_current_.key[KEY_PRESS] = raw_keys;
-        // 2. 利用掩码处理上升沿
-        rc_current_.key[KEY_CLICK].keys = rc_current_.key[KEY_PRESS].keys & (~rc_last_.key[KEY_PRESS].keys);
-        // 3. 处理 Ctrl / Shift 组合键
-        if (rc_current_.key[KEY_PRESS].ctrl) {
-            rc_current_.key[KEY_PRESS_WITH_CTRL] = rc_current_.key[KEY_PRESS];
-        } else {
-            rc_current_.key[KEY_PRESS_WITH_CTRL] = Key_t{};
+    const DT7::RCData& DT7::getData() const { return rc_current_; }
+
+    int16_t DT7::getRockerValue(RCRockerIndex ch) const
+    {
+        switch (ch)
+        {
+        case RCRockerIndex::RIGHT_HORIZONTAL:
+            return rc_current_.rc.rocker_r_h;
+        case RCRockerIndex::RIGHT_VERTICAL:
+            return rc_current_.rc.rocker_r_v;
+        case RCRockerIndex::LEFT_HORIZONTAL:
+            return rc_current_.rc.rocker_l_h;
+        case RCRockerIndex::LEFT_VERTICAL:
+            return rc_current_.rc.rocker_l_v;
+        default:
+            return 0;
         }
+    }
 
-        if (rc_current_.key[KEY_PRESS].shift) {
-            rc_current_.key[KEY_PRESS_WITH_SHIFT] = rc_current_.key[KEY_PRESS];
-        } else {
-            rc_current_.key[KEY_PRESS_WITH_SHIFT] = Key_t{};
+    DT7::RCSwitchState DT7::getLeftSwitch() const { return rc_current_.rc.sw_left; }
+    DT7::RCSwitchState DT7::getRightSwitch() const { return rc_current_.rc.sw_right; }
+
+    uint8_t DT7::getMouseValue(MouseIndex ch) const
+    {
+        switch (ch)
+        {
+        case MouseIndex::X:
+            return static_cast<uint8_t>(rc_current_.mouse.x);
+        case MouseIndex::Y:
+            return static_cast<uint8_t>(rc_current_.mouse.y);
+        case MouseIndex::Z:
+            return static_cast<uint8_t>(rc_current_.mouse.z);
+        default:
+            return 0;
         }
-
-        // 4. 统计按下次数，不过似乎没用
-        //	uint16_t key_now = rc_current_.key[KEY_PRESS].keys;
-        //	uint16_t key_last = rc_last_.key[KEY_PRESS].keys;
-        //	uint16_t key_with_ctrl   = rc_current_.key[KEY_PRESS_WITH_CTRL].keys;
-        //	uint16_t key_with_shift  = rc_current_.key[KEY_PRESS_WITH_SHIFT].keys;
-        //
-        //	uint16_t key_last_ctrl   = rc_last_.key[KEY_PRESS_WITH_CTRL].keys;
-        //	uint16_t key_last_shift  = rc_last_.key[KEY_PRESS_WITH_SHIFT].keys;
-
-        //	// 4. 遍历 16 个按键，检测边沿触发
-        //	for (uint16_t i = 0, mask = 0x1; i < 16; ++i, mask <<= 1) {
-        //		// 跳过 Ctrl/Shift 本身（bit4 / bit5）
-        //		if (i == 4 || i == 5) continue;
-        //
-        //		// (a) 普通按键：当前按下 && 上一次没按下 && 非组合键
-        //		if ((key_now & mask) && !(key_last & mask) &&
-        //				!(key_with_ctrl & mask) && !(key_with_shift & mask)) {
-        //			rc_current_.key_count[KEY_PRESS][i]++;
-        //		}
-        //
-        //		// (b) Ctrl 组合键：检测 Ctrl+某键 的上升沿
-        //		if ((key_with_ctrl & mask) && !(key_last_ctrl & mask)) {
-        //			rc_current_.key_count[KEY_PRESS_WITH_CTRL][i]++;
-        //		}
-        //
-        //		// (c) Shift 组合键：检测 Shift+某键 的上升沿
-        //		if ((key_with_shift & mask) && !(key_last_shift & mask)) {
-        //			rc_current_.key_count[KEY_PRESS_WITH_SHIFT][i]++;
-        //		}
-        //	}
-    }
-    // 打印所有按键状态
-    void DT7::debugPrintKeys() {
-        const auto &key = getInstance().rc_current_.key[KEY_PRESS];
-
-        logger_printf("[Keys] "
-                                    "W=%d S=%d A=%d D=%d "
-                                    "Shift=%d Ctrl=%d "
-                                    "Q=%d E=%d R=%d F=%d "
-                                    "G=%d Z=%d X=%d C=%d "
-                                    "V=%d B=%d\r\n",
-                                    key.w, key.s, key.a, key.d,
-                                    key.shift, key.ctrl,
-                                    key.q, key.e, key.r, key.f,
-                                    key.g, key.z, key.x, key.c,
-                                    key.v, key.b);
     }
 
-    void DT7::debugPrintComboKeys() {
-        const auto &key_ctrl = getInstance().rc_current_.key[KEY_PRESS_WITH_CTRL];
-        const auto &key_shift = getInstance().rc_current_.key[KEY_PRESS_WITH_SHIFT];
-
-        // Ctrl 组合键
-        logger_printf("[Keys+Ctrl] "
-                                    "W=%d S=%d A=%d D=%d Q=%d E=%d R=%d F=%d "
-                                    "G=%d Z=%d X=%d C=%d V=%d B=%d\n",
-                                    key_ctrl.w, key_ctrl.s, key_ctrl.a, key_ctrl.d,
-                                    key_ctrl.q, key_ctrl.e, key_ctrl.r, key_ctrl.f,
-                                    key_ctrl.g, key_ctrl.z, key_ctrl.x, key_ctrl.c,
-                                    key_ctrl.v, key_ctrl.b);
-
-        // Shift 组合键
-        logger_printf("[Keys+Shift] "
-                                    "W=%d S=%d A=%d D=%d Q=%d E=%d R=%d F=%d "
-                                    "G=%d Z=%d X=%d C=%d V=%d B=%d\n",
-                                    key_shift.w, key_shift.s, key_shift.a, key_shift.d,
-                                    key_shift.q, key_shift.e, key_shift.r, key_shift.f,
-                                    key_shift.g, key_shift.z, key_shift.x, key_shift.c,
-                                    key_shift.v, key_shift.b);
-
+    bool DT7::isMouseLeftPressed() const
+    {
+        return rc_current_.mouse.press_l[static_cast<uint8_t>(MouseState::PRESSED)] == 1;
     }
 
-    void DT7::offlineCallback() {
+    bool DT7::isMouseRightPressed() const
+    {
+        return rc_current_.mouse.press_r[static_cast<uint8_t>(MouseState::PRESSED)] == 1;
+    }
+
+    bool DT7::isMouseLeftClicked()
+    {
+        const bool clicked = rc_current_.mouse.press_l[static_cast<uint8_t>(MouseState::CLICKED)] == 1;
+        rc_current_.mouse.press_l[static_cast<uint8_t>(MouseState::CLICKED)] = 0;
+        return clicked;
+    }
+
+    bool DT7::isMouseRightClicked()
+    {
+        const bool clicked = rc_current_.mouse.press_r[static_cast<uint8_t>(MouseState::CLICKED)] == 1;
+        rc_current_.mouse.press_r[static_cast<uint8_t>(MouseState::CLICKED)] = 0;
+        return clicked;
+    }
+
+    bool DT7::isKeyPressed(KeyIndex key) const
+    {
+        return rc_current_.keys[static_cast<uint8_t>(KeyState::PRESSED)].get(key) == 1;
+    }
+
+    bool DT7::isKeyPressedWithCtrl(KeyIndex key) const
+    {
+        if (key == KeyIndex::CTRL)
+        {
+            return false;
+        }
+        if (isKeyPressed(KeyIndex::CTRL))
+        {
+            return rc_current_.keys[static_cast<uint8_t>(KeyState::PRESSED)].get(key) == 1;
+        }
+        return false;
+    }
+
+    bool DT7::isKeyPressedWithShift(KeyIndex key) const
+    {
+        if (key == KeyIndex::SHIFT)
+        {
+            return false;
+        }
+        if (isKeyPressed(KeyIndex::SHIFT))
+        {
+            return rc_current_.keys[static_cast<uint8_t>(KeyState::PRESSED)].get(key) == 1;
+        }
+        return false;
+    }
+
+    bool DT7::isKeyClicked(KeyIndex key)
+    {
+        const bool clicked = rc_current_.keys[static_cast<uint8_t>(KeyState::CLICKED)].get(key) == 1;
+        rc_current_.keys[static_cast<uint8_t>(KeyState::CLICKED)].set(key, false);
+        return clicked;
+    }
+
+    bool DT7::isKeyClickedWithCtrl(KeyIndex key)
+    {
+        if (key == KeyIndex::CTRL)
+        {
+            return false;
+        }
+        if (isKeyPressed(KeyIndex::CTRL))
+        {
+            const bool clicked = rc_current_.keys[static_cast<uint8_t>(KeyState::CLICKED)].get(key) == 1;
+            rc_current_.keys[static_cast<uint8_t>(KeyState::CLICKED)].set(key, false);
+            return clicked;
+        }
+        return false;
+    }
+
+    bool DT7::isKeyClickedWithShift(KeyIndex key)
+    {
+        if (key == KeyIndex::SHIFT)
+        {
+            return false;
+        }
+        if (isKeyPressed(KeyIndex::SHIFT))
+        {
+            const bool clicked = rc_current_.keys[static_cast<uint8_t>(KeyState::CLICKED)].get(key) == 1;
+            rc_current_.keys[static_cast<uint8_t>(KeyState::CLICKED)].set(key, false);
+            return clicked;
+        }
+        return false;
+    }
+
+    bool DT7::isFrameValid() const { return is_frame_valid_; }
+    bool DT7::isOnline() const { return is_online_; }
+
+    void DT7::offlineCallback()
+    {
         //	logger_printf("DT7 offline!\r\n");
 
         is_online_ = false;
-        frame_valid_ = false;
-        rc_current_ = RCData{};//清空目前的所有遥控器数据
-        if (uart_instance_) uart_instance_->startReceive();//遥控器尝试重新接收数据
-        //如果遥控器掉线后还需要做些别的就在这里加
+        is_frame_valid_ = false;
+        rc_current_ = RCData{}; // 清空目前的所有遥控器数据
+        if (uart_instance_)
+            uart_instance_->startReceive(); // 遥控器尝试重新接收数据
+        // 如果遥控器掉线后还需要做些别的就在这里加
     }
-    bool DT7::checkRockerValid() {
-        auto in_range = [](int16_t val) {
-            return val >= RC_CH_VALUE_MIN - RC_CH_VALUE_OFFSET && val <= RC_CH_VALUE_MAX - RC_CH_VALUE_OFFSET;
-        };
+    bool DT7::checkRockerValid() const
+    {
+        auto in_range = [](int16_t val)
+        { return val >= RC_CH_VALUE_MIN - RC_CH_VALUE_OFFSET && val <= RC_CH_VALUE_MAX - RC_CH_VALUE_OFFSET; };
 
-        return in_range(rc_current_.rc.rocker_l_h) &&
-                in_range(rc_current_.rc.rocker_l_v) &&
-                in_range(rc_current_.rc.rocker_r_h) &&
-                in_range(rc_current_.rc.rocker_r_v);
+        return in_range(rc_current_.rc.rocker_l_h) && in_range(rc_current_.rc.rocker_l_v) &&
+            in_range(rc_current_.rc.rocker_r_h) && in_range(rc_current_.rc.rocker_r_v);
     }
-}
+} // namespace ega

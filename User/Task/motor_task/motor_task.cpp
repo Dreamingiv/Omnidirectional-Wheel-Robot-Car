@@ -12,12 +12,12 @@
     using namespace ega;
     constexpr TickType_t period = pdMS_TO_TICKS(2);//周期500hz。有需要可以再提
 
+
     const RobotManager& robot_manager = RobotManager::getInstance();
 
+    TickType_t last_wake_time = xTaskGetTickCount();
     for (;;)
     {
-        TickType_t current_time = xTaskGetTickCount();
-
         switch (robot_manager.getWorkState())
         {
         case RobotManager::WorkState::Work: // 正常工作模式
@@ -32,6 +32,6 @@
         // 执行控制循环
         Motor::controlAll();
 
-        vTaskDelayUntil(&current_time, period / portTICK_RATE_MS);
+        vTaskDelayUntil(&last_wake_time, period);
     }
 }

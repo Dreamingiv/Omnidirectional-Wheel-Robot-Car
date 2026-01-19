@@ -4,6 +4,9 @@
 
 #include "buzzer_on_board.h"
 
+#include "driver_dwt.h"
+#include "logger.h"
+
 namespace ega
 {
 	void BuzzerOnBoard::init()
@@ -19,15 +22,28 @@ namespace ega
 			}
 		);
 		pwm_->setFrequency(4000);
-		singBlock(4000, 200);
+		//singBlock(4000, 200);
 	}
 
 	void BuzzerOnBoard::sing(uint32_t Hz, uint32_t ms)
 	{
 		pwm_->setFrequency(Hz);
 		pwm_->start();
-		HAL_Delay(ms);
-		pwm_->stop();
+		// HAL_Delay(ms);
+	    if (daemon_.has_value())
+	    {
+	        daemon_.reset();
+	    }
+	    Daemon::Config daemon_config = {
+	        .reload_time_ms = static_cast<uint16_t>(ms),
+	        .init_time_ms = static_cast<uint16_t>(ms),
+	        .callback = []()
+	        {
+	            pwm_->stop();
+	        },
+	        .trig_mode = Daemon::TrigMode::Single,
+	    };
+	    daemon_.emplace(daemon_config);
 	}
 
 

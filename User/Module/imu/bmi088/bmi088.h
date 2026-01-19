@@ -6,10 +6,10 @@
 #define MODULE_IMU_BMI088_H_
 
 #include <optional>
-#include "imu.h"
-#include "driver_spi.h"
-#include "madgwick_filter.h"
 #include "bmi088reg.h"
+#include "driver_spi.h"
+#include "imu.h"
+#include "madgwick_filter.h"
 
 namespace ega
 {
@@ -40,11 +40,20 @@ namespace ega
             BMI088_NO_SENSOR = 0xFF,
         };
 
+        struct Config
+        {
+            FilterType filter_type = FilterType::EKF;
+            float sample_time = 0.001;
+
+            Xdirection x_direction = Xdirection::FRONT;
+            Zdirection z_direction = Zdirection::UP;
+        };
+
         /* ====================== 3. 静态接口 ====================== */
 
         /* ====================== 4. 构造 / 析构 ====================== */
     public:
-        explicit BMI088(const IMU::Config& config);
+        explicit BMI088(const Config& config);
         ~BMI088() override = default;
         /* ====================== 5. 公共接口 ====================== */
     public:
@@ -69,37 +78,28 @@ namespace ega
         float accel_sensitivity_;
         float gyro_sensitivity_;
         float accel_scale_;
-        float gyro_offset_[3];
+        float gyro_offset_[3]{};
         float temperature_;
 
-        const uint8_t accel_init_table[BMI088_WRITE_ACCEL_REG_NUM][3] =
-        {
+        const uint8_t accel_init_table[BMI088_WRITE_ACCEL_REG_NUM][3] = {
             {BMI088_ACC_PWR_CTRL, BMI088_ACC_ENABLE_ACC_ON, BMI088_ACC_PWR_CTRL_ERROR},
             {BMI088_ACC_PWR_CONF, BMI088_ACC_PWR_ACTIVE_MODE, BMI088_ACC_PWR_CONF_ERROR},
             {BMI088_ACC_CONF, BMI088_ACC_NORMAL | BMI088_ACC_800_HZ | BMI088_ACC_CONF_MUST_Set, BMI088_ACC_CONF_ERROR},
             {BMI088_ACC_RANGE, BMI088_ACC_RANGE_6G, BMI088_ACC_RANGE_ERROR},
-            {
-                BMI088_INT1_IO_CTRL, BMI088_ACC_INT1_IO_ENABLE | BMI088_ACC_INT1_GPIO_PP | BMI088_ACC_INT1_GPIO_LOW,
-                BMI088_INT1_IO_CTRL_ERROR
-            },
-            {BMI088_INT_MAP_DATA, BMI088_ACC_INT1_DRDY_INTERRUPT, BMI088_INT_MAP_DATA_ERROR}
-        };
+            {BMI088_INT1_IO_CTRL, BMI088_ACC_INT1_IO_ENABLE | BMI088_ACC_INT1_GPIO_PP | BMI088_ACC_INT1_GPIO_LOW,
+             BMI088_INT1_IO_CTRL_ERROR},
+            {BMI088_INT_MAP_DATA, BMI088_ACC_INT1_DRDY_INTERRUPT, BMI088_INT_MAP_DATA_ERROR}};
 
-        const uint8_t gyro_init_table[BMI088_WRITE_GYRO_REG_NUM][3] =
-        {
+        const uint8_t gyro_init_table[BMI088_WRITE_GYRO_REG_NUM][3] = {
             {BMI088_GYRO_RANGE, BMI088_GYRO_2000, BMI088_GYRO_RANGE_ERROR},
-            {
-                BMI088_GYRO_BANDWIDTH, BMI088_GYRO_2000_230_HZ | BMI088_GYRO_BANDWIDTH_MUST_Set,
-                BMI088_GYRO_BANDWIDTH_ERROR
-            },
+            {BMI088_GYRO_BANDWIDTH, BMI088_GYRO_2000_230_HZ | BMI088_GYRO_BANDWIDTH_MUST_Set,
+             BMI088_GYRO_BANDWIDTH_ERROR},
             {BMI088_GYRO_LPM1, BMI088_GYRO_NORMAL_MODE, BMI088_GYRO_LPM1_ERROR},
             {BMI088_GYRO_CTRL, BMI088_DRDY_ON, BMI088_GYRO_CTRL_ERROR},
-            {
-                BMI088_GYRO_INT3_INT4_IO_CONF, BMI088_GYRO_INT3_GPIO_PP | BMI088_GYRO_INT3_GPIO_LOW,
-                BMI088_GYRO_INT3_INT4_IO_CONF_ERROR
-            },
-            {BMI088_GYRO_INT3_INT4_IO_MAP, BMI088_GYRO_DRDY_IO_INT3, BMI088_GYRO_INT3_INT4_IO_MAP_ERROR}
-        };
+            {BMI088_GYRO_INT3_INT4_IO_CONF, BMI088_GYRO_INT3_GPIO_PP | BMI088_GYRO_INT3_GPIO_LOW,
+             BMI088_GYRO_INT3_INT4_IO_CONF_ERROR},
+            {BMI088_GYRO_INT3_INT4_IO_MAP, BMI088_GYRO_DRDY_IO_INT3, BMI088_GYRO_INT3_INT4_IO_MAP_ERROR}};
+
     private:
         // 内部功能函数
         ErrorType accelInit();
@@ -117,7 +117,7 @@ namespace ega
         inline uint8_t gyroReadReg(uint8_t reg);
         inline void gyroReadRegs(uint8_t reg, uint8_t* data, uint16_t len);
     };
-}
+} // namespace ega
 
 
-#endif //MODULE_IMU_BMI088_H_
+#endif // MODULE_IMU_BMI088_H_

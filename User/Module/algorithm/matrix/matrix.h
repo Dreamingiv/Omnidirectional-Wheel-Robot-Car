@@ -17,29 +17,29 @@
 
 // Matrix class
 template <int _rows, int _cols>
-class Mat_f32
+class Matrixf
 {
 public:
     // Constructor without input data
-    Mat_f32() : rows_(_rows), cols_(_cols)
+    Matrixf() : rows_(_rows), cols_(_cols)
     {
         arm_mat_init_f32(&arm_mat_, _rows, _cols, this->data_);
     }
 
     // Constructor with input data
-    explicit Mat_f32(const float data[_rows * _cols]) : Mat_f32()
+    explicit Matrixf(const float data[_rows * _cols]) : Matrixf()
     {
         memcpy(this->data_, data, _rows * _cols * sizeof(float));
     }
 
     // Copy constructor
-    Mat_f32(const Mat_f32<_rows, _cols>& mat) : Mat_f32()
+    Matrixf(const Matrixf<_rows, _cols>& mat) : Matrixf()
     {
         memcpy(this->data_, mat.data_, _rows * _cols * sizeof(float));
     }
 
     // Destructor
-    ~Mat_f32() = default;
+    ~Matrixf() = default;
 
     // Row size
     static int rows() { return _rows; }
@@ -51,97 +51,97 @@ public:
     float* operator[](const int& row) { return &this->data_[row * _cols]; }
 
     // Operators
-    Mat_f32<_rows, _cols>& operator=(const Mat_f32<_rows, _cols> mat)
+    Matrixf<_rows, _cols>& operator=(const Matrixf<_rows, _cols> mat)
     {
         memcpy(this->data_, mat.data_, _rows * _cols * sizeof(float));
         return *this;
     }
 
-    Mat_f32<_rows, _cols>& operator+=(const Mat_f32<_rows, _cols> mat)
+    Matrixf<_rows, _cols>& operator+=(const Matrixf<_rows, _cols> mat)
     {
         arm_status s;
         s = arm_mat_add_f32(&this->arm_mat_, &mat.arm_mat_, &this->arm_mat_);
         return *this;
     }
 
-    Mat_f32<_rows, _cols>& operator-=(const Mat_f32<_rows, _cols> mat)
+    Matrixf<_rows, _cols>& operator-=(const Matrixf<_rows, _cols> mat)
     {
         arm_status s;
         s = arm_mat_sub_f32(&this->arm_mat_, &mat.arm_mat_, &this->arm_mat_);
         return *this;
     }
 
-    Mat_f32<_rows, _cols>& operator*=(const float& val)
+    Matrixf<_rows, _cols>& operator*=(const float& val)
     {
         arm_status s;
         s = arm_mat_scale_f32(&this->arm_mat_, val, &this->arm_mat_);
         return *this;
     }
 
-    Mat_f32<_rows, _cols>& operator/=(const float& val)
+    Matrixf<_rows, _cols>& operator/=(const float& val)
     {
         arm_status s;
         s = arm_mat_scale_f32(&this->arm_mat_, 1.f / val, &this->arm_mat_);
         return *this;
     }
 
-    Mat_f32<_rows, _cols> operator+(const Mat_f32<_rows, _cols>& mat)
+    Matrixf<_rows, _cols> operator+(const Matrixf<_rows, _cols>& mat)
     {
         arm_status            s;
-        Mat_f32<_rows, _cols> res;
+        Matrixf<_rows, _cols> res;
         s = arm_mat_add_f32(&this->arm_mat_, &mat.arm_mat_, &res.arm_mat_);
         return res;
     }
 
-    Mat_f32<_rows, _cols> operator-(const Mat_f32<_rows, _cols>& mat)
+    Matrixf<_rows, _cols> operator-(const Matrixf<_rows, _cols>& mat)
     {
         arm_status            s;
-        Mat_f32<_rows, _cols> res;
+        Matrixf<_rows, _cols> res;
         s = arm_mat_sub_f32(&this->arm_mat_, &mat.arm_mat_, &res.arm_mat_);
         return res;
     }
 
-    Mat_f32<_rows, _cols> operator*(const float& val)
+    Matrixf<_rows, _cols> operator*(const float& val)
     {
         arm_status            s;
-        Mat_f32<_rows, _cols> res;
+        Matrixf<_rows, _cols> res;
         s = arm_mat_scale_f32(&this->arm_mat_, val, &res.arm_mat_);
         return res;
     }
 
-    friend Mat_f32<_rows, _cols> operator*(const float&                 val,
-                                           const Mat_f32<_rows, _cols>& mat)
+    friend Matrixf<_rows, _cols> operator*(const float&                 val,
+                                           const Matrixf<_rows, _cols>& mat)
     {
         arm_status            s;
-        Mat_f32<_rows, _cols> res;
+        Matrixf<_rows, _cols> res;
         s = arm_mat_scale_f32(&mat.arm_mat_, val, &res.arm_mat_);
         return res;
     }
 
-    Mat_f32<_rows, _cols> operator/(const float& val)
+    Matrixf<_rows, _cols> operator/(const float& val)
     {
         arm_status            s;
-        Mat_f32<_rows, _cols> res;
+        Matrixf<_rows, _cols> res;
         s = arm_mat_scale_f32(&this->arm_mat_, 1.f / val, &res.arm_mat_);
         return res;
     }
 
     // Matrix multiplication
     template <int cols>
-    friend Mat_f32<_rows, cols> operator*(const Mat_f32<_rows, _cols>& mat1,
-                                          const Mat_f32<_cols, cols>&  mat2)
+    friend Matrixf<_rows, cols> operator*(const Matrixf<_rows, _cols>& mat1,
+                                          const Matrixf<_cols, cols>&  mat2)
     {
         arm_status           s;
-        Mat_f32<_rows, cols> res;
+        Matrixf<_rows, cols> res;
         s = arm_mat_mult_f32(&mat1.arm_mat_, &mat2.arm_mat_, &res.arm_mat_);
         return res;
     }
 
     // Submatrix
     template <int rows, int cols>
-    Mat_f32<rows, cols> block(const int& start_row, const int& start_col)
+    Matrixf<rows, cols> block(const int& start_row, const int& start_col)
     {
-        Mat_f32<rows, cols> res;
+        Matrixf<rows, cols> res;
         for (int row = start_row; row < start_row + rows; row++)
         {
             memcpy(static_cast<float*>(res[0]) + (row - start_row) * cols,
@@ -152,14 +152,14 @@ public:
     }
 
     // Specific row
-    Mat_f32<1, _cols> row(const int& row) { return block<1, _cols>(row, 0); }
+    Matrixf<1, _cols> row(const int& row) { return block<1, _cols>(row, 0); }
     // Specific column
-    Mat_f32<_rows, 1> col(const int& col) { return block<_rows, 1>(0, col); }
+    Matrixf<_rows, 1> col(const int& col) { return block<_rows, 1>(0, col); }
 
     // Transpose
-    Mat_f32<_cols, _rows> trans()
+    Matrixf<_cols, _rows> trans()
     {
-        Mat_f32<_cols, _rows> res;
+        Matrixf<_cols, _rows> res;
         arm_mat_trans_f32(&arm_mat_, &res.arm_mat_);
         return res;
     }
@@ -176,7 +176,13 @@ public:
     }
 
     // Norm
-    float norm() { return sqrtf((this->trans() * *this)[0][0]); }
+    float norm() { return 1.0f / InvSqrtf((this->trans() * *this)[0][0]); }
+
+    // Norm
+    float invNorm() { return InvSqrtf((this->trans() * *this)[0][0]); }
+
+    // Normalize
+    void normalize() { *this *= InvSqrtf((this->trans() * *this)[0][0]); }
 
     // clear
     void clear() { memset(data_, 0, _rows * _cols * sizeof(float)); }
@@ -190,49 +196,64 @@ protected:
     int rows_, cols_;
     // data
     float data_[_rows * _cols]{};
+    
+private:
+    static float InvSqrtf(float x)
+    {
+        /* Fast inverse square-root */
+        /* See: http://en.wikipedia.org/wiki/Fast_inverse_square_root */
+        float halfx = 0.5f * x;
+        float y     = x;
+        long  i     = *(long*)&y;
+        i           = 0x5f3759df - (i >> 1);
+        y           = *(float*)&i;
+        y           = y * (1.5f - (halfx * y * y));
+        y           = y * (1.5f - (halfx * y * y));
+        return y;
+    }
 };
 
 // Matrix functions
-namespace MatrixF32
+namespace matrixf
 {
     // Special Matrices
     // Zero matrix
     template <int _rows, int _cols>
-    Mat_f32<_rows, _cols> zeros()
+    Matrixf<_rows, _cols> zeros()
     {
         float data[_rows * _cols] = {0};
-        return Mat_f32<_rows, _cols>(data);
+        return Matrixf<_rows, _cols>(data);
     }
 
     // Ones matrix
     template <int _rows, int _cols>
-    Mat_f32<_rows, _cols> ones()
+    Matrixf<_rows, _cols> ones()
     {
         float data[_rows * _cols] = {0};
         for (int i = 0; i < _rows * _cols; i++)
         {
             data[i] = 1;
         }
-        return Mat_f32<_rows, _cols>(data);
+        return Matrixf<_rows, _cols>(data);
     }
 
     // Identity matrix
     template <int _rows, int _cols>
-    Mat_f32<_rows, _cols> eye()
+    Matrixf<_rows, _cols> eye()
     {
         float data[_rows * _cols] = {0};
         for (int i = 0; i < fmin(_rows, _cols); i++)
         {
             data[i * _cols + i] = 1;
         }
-        return Mat_f32<_rows, _cols>(data);
+        return Matrixf<_rows, _cols>(data);
     }
 
     // Diagonal matrix
     template <int _rows, int _cols>
-    Mat_f32<_rows, _cols> diag(Mat_f32<_rows, 1> vec)
+    Matrixf<_rows, _cols> diag(Matrixf<_rows, 1> vec)
     {
-        Mat_f32<_rows, _cols> res = MatrixF32::zeros<_rows, _cols>();
+        Matrixf<_rows, _cols> res = matrixf::zeros<_rows, _cols>();
         for (int i = 0; i < fmin(_rows, _cols); i++)
         {
             res[i][i] = vec[i][0];
@@ -242,11 +263,11 @@ namespace MatrixF32
 
     // Inverse
     template <int _dim>
-    Mat_f32<_dim, _dim> inv(Mat_f32<_dim, _dim> mat)
+    Matrixf<_dim, _dim> inv(Matrixf<_dim, _dim> mat)
     {
         arm_status s;
         // extended matrix [A|I]
-        Mat_f32<_dim, 2 * _dim> ext_mat = MatrixF32::zeros<_dim, 2 * _dim>();
+        Matrixf<_dim, 2 * _dim> ext_mat = matrixf::zeros<_dim, 2 * _dim>();
         for (int i = 0; i < _dim; i++)
         {
             memcpy(ext_mat[i], mat[i], _dim * sizeof(float));
@@ -269,15 +290,15 @@ namespace MatrixF32
             if (abs_max < 1e-12f)
             {
                 // singular
-                return MatrixF32::zeros<_dim, _dim>();
+                return matrixf::zeros<_dim, _dim>();
                 s = ARM_MATH_SINGULAR;
             }
             if (abs_max_row != i)
             {
                 // row exchange
                 float                tmp;
-                Mat_f32<1, 2 * _dim> row_i       = ext_mat.row(i);
-                Mat_f32<1, 2 * _dim> row_abs_max = ext_mat.row(abs_max_row);
+                Matrixf<1, 2 * _dim> row_i       = ext_mat.row(i);
+                Matrixf<1, 2 * _dim> row_abs_max = ext_mat.row(abs_max_row);
                 memcpy(ext_mat[i], row_abs_max[0], 2 * _dim * sizeof(float));
                 memcpy(ext_mat[abs_max_row], row_i[0], 2 * _dim * sizeof(float));
             }
@@ -301,7 +322,7 @@ namespace MatrixF32
         }
         // inv = ext_mat(:,n+1:2n)
         s = ARM_MATH_SUCCESS;
-        Mat_f32<_dim, _dim> res;
+        Matrixf<_dim, _dim> res;
         for (int i = 0; i < _dim; i++)
         {
             memcpy(res[i], &ext_mat[i][_dim], _dim * sizeof(float));
@@ -310,23 +331,23 @@ namespace MatrixF32
     }
 } // namespace matrixf
 
-namespace Vector3F32
+namespace vector3f
 {
     // hat of vector
-    inline Mat_f32<3, 3> hat(Mat_f32<3, 1> vec)
+    inline Matrixf<3, 3> hat(Matrixf<3, 1> vec)
     {
         float hat[9] = {
             0, -vec[2][0], vec[1][0],
             vec[2][0], 0, -vec[0][0],
             -vec[1][0], vec[0][0], 0
         };
-        return Mat_f32<3, 3>(hat);
+        return Matrixf<3, 3>(hat);
     }
 
     // cross product
-    inline Mat_f32<3, 1> cross(const Mat_f32<3, 1>& vec1, const Mat_f32<3, 1>& vec2)
+    inline Matrixf<3, 1> cross(const Matrixf<3, 1>& vec1, const Matrixf<3, 1>& vec2)
     {
-        return Vector3F32::hat(vec1) * vec2;
+        return vector3f::hat(vec1) * vec2;
     }
 } // namespace vector3f
 

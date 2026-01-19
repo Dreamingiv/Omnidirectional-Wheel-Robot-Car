@@ -5,7 +5,7 @@
 #ifndef MODULE_IMU_IMU_H_
 #define MODULE_IMU_IMU_H_
 
-#include "main.h"
+#include <cstdint>
 #include <optional>
 #include "eulerAngle_and_quaternion.h"
 #include "matrix.h"
@@ -29,19 +29,6 @@ namespace ega
         static constexpr size_t MX_INS_NUM = 3;
         /* ====================== 2. 内部类型定义 ====================== */
     public:
-        // IMU 设备类型枚举
-        enum class Type
-        {
-            UNKNOWN = 0,
-            BMI088,
-            DM_IMU,
-
-            MPU6050,
-            ICM42688,
-
-            CUSTOM
-        };
-
         enum class CalibrationStatus
         {
             ONLINE, // 在线校准
@@ -55,34 +42,26 @@ namespace ega
             MADGWICK,
         };
 
-        struct BMI088Config
+        enum class Xdirection
         {
-            SPIInstance::Config spi_accel;
-            SPIInstance::Config spi_gyro;
+            FRONT,
+            LEFT,
+            BACK,
+            RIGHT,
         };
 
-        struct DM_IMUConfig
+        enum class Zdirection
         {
-            uint16_t id{0};
-            CANInstance::Config can_config;
+            UP,
+            DOWN,
         };
 
-        struct Config
-        {
-            Type type = Type::BMI088; // 默认为板载的BMI088
-            FilterType filter_type = FilterType::EKF;
-            float sample_time = 0.001;
-
-            // 各种陀螺仪的配置
-            BMI088Config bmi088_config{};
-            DM_IMUConfig dm_imu_config{};
-            // 待添加
-        };
 
         /* ====================== 3. 静态接口 ====================== */
     public:
-        static std::unique_ptr<IMU> create(const Config& config); // 工厂函数，供上层调用
-        static void updateAll(); // 静态循环，调用所有注册过的imu并更新数据，方便放在task里面循环跑（是否有实现的必要？）
+        // static std::unique_ptr<IMU> create(const Config& config); // 工厂函数，供上层调用
+        static void
+        updateAll(); // 静态循环，调用所有注册过的imu并更新数据，方便放在task里面循环跑（是否有实现的必要？）
 
         /* ====================== 4. 构造 / 析构 ====================== */
     public:
@@ -112,29 +91,20 @@ namespace ega
 
         /* ====================== 5. 公共接口 ====================== */
     public:
-
         virtual void readData() = 0; // 更新原始数据（加速度、角速度）
-        virtual void calculate() = 0; //readData后调用，用于融合或解算姿态
+        virtual void calculate() = 0; // readData后调用，用于融合或解算姿态
         virtual void calibrate() = 0; // 可选：零偏/校准
         void clear();
 
-        void inline update(); //数据更新接口
+        void inline update(); // 数据更新接口
 
         // 获取接口
         [[nodiscard]] const QuaternionF32& getQuaternion() const { return quaternion_; }
         [[nodiscard]] const EulerAngle& getEulerAngles() const { return euler_angle_; }
-        [[nodiscard]] const Mat_f32<3, 1>& getGyro() const { return gyro_data_; }
-        [[nodiscard]] const Mat_f32<3, 1>& getAccel() const { return accel_data_; }
-        [[nodiscard]] Type getType() const { return type_; }
+        [[nodiscard]] const Matrixf<3, 1>& getGyro() const { return gyro_data_; }
+        [[nodiscard]] const Matrixf<3, 1>& getAccel() const { return accel_data_; }
 
         /* ====================== 6. 受保护接口 ====================== */
-    protected:
-        void initParams(const Config& config)
-        {
-            type_ = config.type;
-            filter_type_ = config.filter_type;
-            sample_time_ = config.sample_time;
-        }
 
         /* ====================== 7. 成员变量 ====================== */
     private:
@@ -142,8 +112,6 @@ namespace ega
         static inline int16_t index_;
 
     protected:
-        Type type_ = Type::BMI088;
-
         FilterType filter_type_ = FilterType::EKF;
         std::optional<QuaternionEKF> ekf_filter_;
         std::optional<MadgwickFilter> madgwick_filter_;
@@ -151,10 +119,12 @@ namespace ega
         float sample_time_ = 0.01; // 采样时间
         QuaternionF32 quaternion_; // 当前姿态（四元数）
         EulerAngle euler_angle_{}; // 当前姿态（欧拉角）
-        Mat_f32<3, 1> gyro_data_; // 角速度 (rad/s)
-        Mat_f32<3, 1> accel_data_; // 加速度 (m/s²)
+        Matrixf<3, 1> gyro_data_; // 角速度 (rad/s)
+        Matrixf<3, 1> accel_data_; // 加速度 (m/s²)
+        
+        Matrixf<3, 3> rotation_; // 旋转矩阵
     };
-}
+} // namespace ega
 
 
 #endif // MODULE_IMU_IMU_H_

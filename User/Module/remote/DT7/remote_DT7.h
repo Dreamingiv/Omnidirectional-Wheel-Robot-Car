@@ -2,8 +2,8 @@
 #define MODULE_REMOTE_DT7_H_
 
 #include <optional>
-#include "driver_usart.h"
 #include "daemon.h"
+#include "driver_usart.h"
 
 
 /**
@@ -18,196 +18,168 @@
  * DT7遥控器发送频率为大约14ms一次
  */
 
-//todo 后续取消全局单例设定，改为每个实例单独管理
+// todo 后续取消全局单例设定，改为每个实例单独管理
 namespace ega
 {
-	// 键盘按键索引
-	namespace DT7Key {
-		static constexpr uint8_t W = 0;
-		static constexpr uint8_t S = 1;
-		static constexpr uint8_t A = 2;
-		static constexpr uint8_t D = 3;
-		static constexpr uint8_t SHIFT = 4;
-		static constexpr uint8_t CTRL = 5;
-		static constexpr uint8_t Q = 6;
-		static constexpr uint8_t E = 7;
-		static constexpr uint8_t R = 8;
-		static constexpr uint8_t F = 9;
-		static constexpr uint8_t G = 10;
-		static constexpr uint8_t Z = 11;
-		static constexpr uint8_t X = 12;
-		static constexpr uint8_t C = 13;
-		static constexpr uint8_t V = 14;
-		static constexpr uint8_t B = 15;
-	}
+    class DT7
+    {
+        /* ====================== 1. 编译期常量 ====================== */
+    public:
+        // 摇杆偏置
+        static constexpr int16_t RC_CH_VALUE_MIN = 364;
+        static constexpr int16_t RC_CH_VALUE_OFFSET = 1024;
+        static constexpr int16_t RC_CH_VALUE_MAX = 1684;
 
-	class DT7 {
-		/* ====================== 1. 编译期常量 & 类型别名 ====================== */
-	public:
-		// 摇杆偏置
-		static constexpr int16_t RC_CH_VALUE_MIN = 364;
-		static constexpr int16_t RC_CH_VALUE_OFFSET = 1024;
-		static constexpr int16_t RC_CH_VALUE_MAX = 1684;
-		static constexpr float RC_CH_VALUE_RANGE_ABS = 660.0f;
-		// 拨杆状态
-		static constexpr uint8_t RC_SW_UP = 1;
-		static constexpr uint8_t RC_SW_MID = 3;
-		static constexpr uint8_t RC_SW_DOWN = 2;
-		//鼠标状态索引
-		static constexpr uint8_t MOUSE_PRESS = 0;
-		static constexpr uint8_t MOUSE_CLICK = 1;
-		// 键盘状态索引
-		static constexpr uint8_t KEY_PRESS = 0;
-		static constexpr uint8_t KEY_CLICK = 1;
-		static constexpr uint8_t KEY_PRESS_WITH_CTRL = 2;
-		static constexpr uint8_t KEY_PRESS_WITH_SHIFT = 3;
+    private:
+        static constexpr uint16_t DBUS_FRAME_SIZE = 18;
+        /* ====================== 2. 内部类型定义 ====================== */
+    public:
+        enum class RCSwitchState : uint8_t
+        {
+            UP = 1,
+            DOWN = 2,
+            MIDDLE = 3,
+        };
+        enum class RCRockerIndex : uint8_t
+        {
+            RIGHT_HORIZONTAL = 0,
+            RIGHT_VERTICAL = 1,
+            LEFT_HORIZONTAL = 2,
+            LEFT_VERTICAL = 3,
+        };
+        enum class MouseState : uint8_t
+        {
+            PRESSED = 0,
+            CLICKED = 1,
+        };
+        enum class MouseIndex : uint8_t
+        {
+            X = 0,
+            Y = 1,
+            Z = 2,
+        };
+        enum class KeyState : uint8_t
+        {
+            PRESSED = 0,
+            CLICKED = 1,
+        };
+        // 键盘按键索引
+        enum class KeyIndex : uint16_t
+        {
+            W = 0,
+            S,
+            A,
+            D,
+            SHIFT,
+            CTRL,
+            Q,
+            E,
+            R,
+            F,
+            G,
+            Z,
+            X,
+            C,
+            V,
+            B,
+        };
+        // 键盘数据
+        struct KeyData
+        {
+            uint16_t raw;
 
-	private:
-		static constexpr uint16_t DBUS_FRAME_SIZE = 18;
+            // 获取特定位的状态
+            uint8_t get(KeyIndex key) const { return (raw & (1U << static_cast<uint16_t>(key))) ? 1 : 0; }
 
-		/* ====================== 2. 内部类型定义 ====================== */
-	public:
-		//位域结构体,跃鹿说可以提高解析速度
-		struct Key_t {
-			union {
-				struct {
-					uint16_t w: 1;
-					uint16_t s: 1;
-					uint16_t a: 1;
-					uint16_t d: 1;
-					uint16_t shift: 1;
-					uint16_t ctrl: 1;
-					uint16_t q: 1;
-					uint16_t e: 1;
-					uint16_t r: 1;
-					uint16_t f: 1;
-					uint16_t g: 1;
-					uint16_t z: 1;
-					uint16_t x: 1;
-					uint16_t c: 1;
-					uint16_t v: 1;
-					uint16_t b: 1;
-				};
-				uint16_t keys{0};
-			};
-		};
-		// 遥控器完整数据
-		struct RCData {
-			struct {
-				int16_t rocker_r_h;   // 右水平（horizontal）
-				int16_t rocker_r_v;   // 右竖直（vertical）
-				int16_t rocker_l_h;   // 左水平
-				int16_t rocker_l_v;   // 左竖直
-				int16_t dial;  // 拨轮
-				uint8_t sw_left;
-				uint8_t sw_right;
-			} rc;
+            // 设置特定位的状态
+            void set(KeyIndex key, bool value)
+            {
+                auto mask = static_cast<uint16_t>(1U << static_cast<uint16_t>(key));
+                if (value)
+                {
+                    raw |= mask; // 将对应位置为 1
+                }
+                else
+                {
+                    raw &= ~mask; // 将对应位置为 0
+                }
+            }
+        };
+        // 总接收数据帧
+        struct RCData
+        {
+            struct
+            {
+                int16_t rocker_r_h; // 右水平（horizontal）
+                int16_t rocker_r_v; // 右竖直（vertical）
+                int16_t rocker_l_h; // 左水平
+                int16_t rocker_l_v; // 左竖直
+                int16_t dial; // 拨轮
+                RCSwitchState sw_left;
+                RCSwitchState sw_right;
+            } rc;
+            struct
+            {
+                int16_t x;
+                int16_t y;
+                int16_t z; // 鼠标滚轮
+                uint8_t press_l[2]; // 0: Pressed, 1: Clicked
+                uint8_t press_r[2];
+            } mouse;
+            KeyData keys[2]; // 0: Pressed, 1: Clicked
+        };
+        /* ====================== 3. 方法接口 ====================== */
+    public:
+        DT7(const DT7&) = delete; // 禁止拷贝
+        DT7& operator=(const DT7&) = delete;
 
-			struct {
-				int16_t x;
-				int16_t y;
-				int16_t z;//鼠标滚轮
-				uint8_t press_l[2];
-				uint8_t press_r[2];
-			} mouse;
+        explicit DT7(const UARTInstance::Config& config);
+        DT7();
 
-			Key_t key[4];//分别为：当前按下的键，上一帧没按但这一帧按了的键，Ctrl组合键，Shift组合键
-			//uint8_t key_count[3][16];//统计总按下次数的键，但是看起来没什么用
-		};
+        void start();
+        void stop();
+        void debug(); // TODO:
 
-		/* ====================== 3. 静态接口 ====================== */
-	public:
-		static DT7 &getInstance();
+        /* ====================== 4. API ====================== */
+    public:
+        // 完整数据帧
+        const RCData& getData() const;
+        // 遥控器通道
+        int16_t getRockerValue(RCRockerIndex ch) const;
+        RCSwitchState getLeftSwitch() const;
+        RCSwitchState getRightSwitch() const;
+        // 鼠标通道
+        uint8_t getMouseValue(MouseIndex ch) const;
+        bool isMouseLeftPressed() const;
+        bool isMouseRightPressed() const;
+        bool isMouseLeftClicked();
+        bool isMouseRightClicked();
+        // 键盘通道
+        bool isKeyPressed(KeyIndex key) const;
+        bool isKeyPressedWithCtrl(KeyIndex key) const;
+        bool isKeyPressedWithShift(KeyIndex key) const;
+        bool isKeyClicked(KeyIndex key);
+        bool isKeyClickedWithCtrl(KeyIndex key);
+        bool isKeyClickedWithShift(KeyIndex key);
+        // 其他接口
+        bool isFrameValid() const;
+        bool isOnline() const;
 
-		static bool init();  // 使用默认配置初始化。绝大部分情况下直接用这个就行
-		static bool init(const UARTInstance::Config &config);
+        /* ====================== 5. 成员变量 ====================== */
+    private:
+        std::optional<UARTInstance> uart_instance_;
+        std::optional<Daemon> daemon_;
+        bool is_frame_valid_ = false;
+        bool is_online_ = false;
 
-	    static void DBUSCallback(uint8_t *data, uint16_t size);
+        RCData rc_current_ {};
+        RCData rc_last_ {};
 
-	    static void stop();
-		static void start();
-
-		// 数据接口
-		static const RCData &getData() { return getInstance().rc_current_; }//获取完整数据
-		static bool isFrameValid() { return getInstance().frame_valid_; }//判断是否有效
-
-		// API。
-        static uint8_t getLeftSwitch() { return getInstance().rc_current_.rc.sw_left; }
-		static uint8_t getRightSwitch() { return getInstance().rc_current_.rc.sw_right; }
-		static bool isMouseLeftPressed() {
-			return (getInstance().rc_current_.mouse.press_l[MOUSE_PRESS]) & 0x1;
-		}
-		static bool isMouseLeftClicked() {//注意：查询CLICK事件为了消抖，同一帧内只能查到一次，请勿连续查询。
-			bool clicked = getInstance().rc_current_.mouse.press_l[MOUSE_CLICK];
-			getInstance().rc_current_.mouse.press_l[MOUSE_CLICK] = 0;//防止抖动
-			return clicked;
-		}
-		static bool isMouseRightPressed() {
-			return (getInstance().rc_current_.mouse.press_r[MOUSE_PRESS]) & 0x1;
-		}
-		static bool isMouseRightClicked() {//注意：查询CLICK事件为了消抖，同一帧内只能查到一次，请勿连续查询。
-			bool clicked = getInstance().rc_current_.mouse.press_r[MOUSE_CLICK];
-			getInstance().rc_current_.mouse.press_r[MOUSE_CLICK] = 0;
-			return clicked;
-		}
-		static bool isKeyPressed(int key_index) {
-			if (key_index < 0 || key_index >= 16) return false;
-			return (getInstance().rc_current_.key[KEY_PRESS].keys >> key_index) & 0x1;
-		}
-		static bool isKeyClicked(int key_index) {//注意：查询CLICK事件为了消抖，同一帧内只能查到一次，请勿连续查询。
-			if (key_index < 0 || key_index >= 16) return false;
-			const bool clicked =(getInstance().rc_current_.key[KEY_CLICK].keys >> key_index) & 0x1;
-			const uint16_t mask = static_cast<uint16_t>(1u) << key_index;
-			getInstance().rc_current_.key[KEY_CLICK].keys &= static_cast<uint16_t>(~mask);
-			return clicked;
-		}
-		static bool isCtrlComboPressed(int key_index)  {
-			if (key_index < 0 || key_index >= 16) return false;
-			return (getInstance().rc_current_.key[KEY_PRESS_WITH_CTRL].keys >> key_index) & 0x1;
-		}
-		static bool isShiftComboPressed(int key_index)  {
-			if (key_index < 0 || key_index >= 16) return false;
-			return (getInstance().rc_current_.key[KEY_PRESS_WITH_SHIFT].keys >> key_index) & 0x1;
-		}
-
-		static bool isOnline(){
-			return getInstance().is_online_;
-		}
-
-		static void debugPrintKeys();
-		static void debugPrintComboKeys();
-
-		/* ====================== 4. 构造 / 析构 ====================== */
-	private:
-		DT7() = default;                       // 使用 default 构造函数
-		DT7(const DT7 &) = delete;            //禁止拷贝
-		DT7 &operator=(const DT7 &) = delete;
-
-		/* ====================== 5. 公共接口 ====================== */
-
-
-		/* ====================== 6. 受保护接口 ====================== */
-
-		/* ====================== 7. 成员变量 ====================== */
-	private:
-		// 默认成员初始化（C++11 起支持）
-		std::optional<UARTInstance> uart_instance_; //延迟注册
-		std::optional<Daemon> daemon_;//延迟注册
-		bool frame_valid_{false};//看起来这个标志位不是很有用？
-		bool is_online_{false};//标记遥控器是否在线。
-		bool inited_{false};
-
-		RCData rc_current_{};
-		RCData rc_last_{};
-	private:
-	    bool checkRockerValid();
-
-	    void parseFrame(uint8_t *data, uint16_t size); //解析遥控器协议
-	    void parseKeys(uint16_t raw_keys);//键盘比较特殊，单独拿出来一个函数
-
-	    void offlineCallback();
-	    bool doInit(const UARTInstance::Config &config);
-	};
-}
-
+        void DBUSCallback(uint8_t* data, uint16_t size);
+        void parseFrame(const uint8_t* data, uint16_t size); // 解析遥控器协议
+        static RCSwitchState convertSwitchState(int16_t val);
+        bool checkRockerValid() const;
+        void offlineCallback();
+    };
+} // namespace ega
 #endif // MODULE_REMOTE_DT7_H_

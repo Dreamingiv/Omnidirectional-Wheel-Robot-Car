@@ -8,9 +8,10 @@ namespace ega
 
     // =============================== 构造函数 ===============================
     Daemon::Daemon(const Config& cfg)
-            : reload_count_(cfg.reload_count == 0 ? 100 : cfg.reload_count),
-                temp_count_(cfg.init_count == 0 ? 100 : cfg.init_count),
-                callback_(cfg.callback)
+            : reload_count_(cfg.reload_time_ms == 0 ? 100 : cfg.reload_time_ms / PERIOD_MS),
+                temp_count_(cfg.init_time_ms == 0 ? 100 : cfg.init_time_ms / PERIOD_MS),
+                callback_(cfg.callback),
+                trig_mode_(cfg.trig_mode)
     {
         if (instance_count_ >= MX_INS_NUM) {
             // 实例超出上限
@@ -43,6 +44,10 @@ namespace ega
         return temp_count_ > 0;
     }
 
+    void Daemon::setTime(const uint16_t time_ms) {
+        temp_count_ = time_ms == 0 ? 100 : time_ms / PERIOD_MS;
+    }
+
     // =============================== 静态任务函数 ===============================
     void Daemon::updateAll() {
         for (uint8_t i = 0; i < instance_count_; ++i) {
@@ -53,7 +58,11 @@ namespace ega
                 ins->temp_count_--;
             } else {
                 if (ins->callback_) {
-                    ins->callback_();
+                    // 连续触发或单次未触发时调用回调
+                    if (ins->trig_mode_ == TrigMode::Continuous || !ins->trigged_) {
+                        ins->callback_();
+                        ins->trigged_ = true; // 标记为已触发（单次触发模式）
+                    }
                 }
             }
         }

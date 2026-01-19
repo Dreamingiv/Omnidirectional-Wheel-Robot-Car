@@ -3,295 +3,348 @@
 //
 
 #include "bmi088.h"
+
 #include "cmsis_os.h"
+
+#include "imu.h"
+#include "logger.h"
+#include "matrix.h"
 
 namespace ega
 {
 
-BMI088::BMI088(const Config& config) :
-    IMU(), error_code_(BMI088_NO_ERROR), accel_sensitivity_(BMI088_ACCEL_6G_SEN),
-    gyro_sensitivity_(BMI088_GYRO_2000_SEN), accel_scale_(1.0f), temperature_(0.0f)
-{
-    // 初始化基类参数
-    initParams(config);
-
-    // todo 目前强制使用默认外设，之后改成可以用config提供
-    // 初始化加速度计外设
-    SPIInstance::Config accel_spi_cfg{
-        .handle = &hspi1,
-        .cs_port = CS1_ACCEL_GPIO_Port,
-        .cs_pin = CS1_ACCEL_Pin,
-        .effect_pin_state_ = GPIO_PIN_RESET,
-        .type = SPIInstance::BLOCK,
-        .mode = SPIInstance::FULL_DUPLEX,
-        .is_master = true,
-        .tx_size = 8,
-        .rx_size = 8,
-        .tx_callback = nullptr,
-        .rx_callback = nullptr,
-    };
-    spi_accel_.emplace(accel_spi_cfg);
-
-    // 初始化陀螺仪外设
-    SPIInstance::Config gyro_spi_cfg({
-        .handle = &hspi1,
-        .cs_port = CS1_GYRO_GPIO_Port,
-        .cs_pin = CS1_GYRO_Pin,
-        .effect_pin_state_ = GPIO_PIN_RESET,
-        .type = SPIInstance::BLOCK,
-        .mode = SPIInstance::FULL_DUPLEX,
-        .is_master = true,
-        .tx_size = 8,
-        .rx_size = 8,
-        .tx_callback = nullptr,
-        .rx_callback = nullptr,
-    });
-    spi_gyro_.emplace(gyro_spi_cfg);
-    // 固定参数初始化滤波器 todo 考虑将其设置为带默认值的config
-
-    // 选择姿态融合滤波器类型
-    switch (filter_type_)
+    BMI088::BMI088(const Config& config) :
+        IMU(), error_code_(BMI088_NO_ERROR), accel_sensitivity_(BMI088_ACCEL_6G_SEN),
+        gyro_sensitivity_(BMI088_GYRO_2000_SEN), accel_scale_(1.0f), temperature_(0.0f)
     {
-    case FilterType::EKF:
+        filter_type_ = config.filter_type;
+        sample_time_ = config.sample_time;
+
+        // todo 目前强制使用默认外设，之后改成可以用config提供
+        // 初始化加速度计外设
+        SPIInstance::Config accel_spi_cfg{
+            .handle = &hspi1,
+            .cs_port = CS1_ACCEL_GPIO_Port,
+            .cs_pin = CS1_ACCEL_Pin,
+            .effect_pin_state_ = GPIO_PIN_RESET,
+            .type = SPIInstance::BLOCK,
+            .mode = SPIInstance::FULL_DUPLEX,
+            .is_master = true,
+            .tx_size = 8,
+            .rx_size = 8,
+            .tx_callback = nullptr,
+            .rx_callback = nullptr,
+        };
+        spi_accel_.emplace(accel_spi_cfg);
+
+        // 初始化陀螺仪外设
+        SPIInstance::Config gyro_spi_cfg({
+            .handle = &hspi1,
+            .cs_port = CS1_GYRO_GPIO_Port,
+            .cs_pin = CS1_GYRO_Pin,
+            .effect_pin_state_ = GPIO_PIN_RESET,
+            .type = SPIInstance::BLOCK,
+            .mode = SPIInstance::FULL_DUPLEX,
+            .is_master = true,
+            .tx_size = 8,
+            .rx_size = 8,
+            .tx_callback = nullptr,
+            .rx_callback = nullptr,
+        });
+        spi_gyro_.emplace(gyro_spi_cfg);
+        // 固定参数初始化滤波器 todo 考虑将其设置为带默认值的config
+
+        // 选择姿态融合滤波器类型
+        switch (filter_type_)
         {
-            ekf_filter_.emplace(QuaternionF32(), 10, 0.001, 1e+6, 1, 0, 0.005);
+        case FilterType::EKF:
+            {
+                ekf_filter_.emplace(QuaternionF32(), 10, 0.001, 1e+6, 1, 0, 0.005);
+            }
+        case FilterType::MADGWICK:
+            {
+                madgwick_filter_.emplace();
+            }
+        default:
+            break;
         }
-    case FilterType::MADGWICK:
+
+        rotation_ = matrixf::eye<3, 3>();
+        switch (config.x_direction)
         {
-            madgwick_filter_.emplace();
+        case IMU::Xdirection::FRONT:
+            {
+                break;
+            }
+        case IMU::Xdirection::LEFT:
+            {
+                rotation_(0, 0) = 0.0f;
+                rotation_(1, 0) = 1.0f;
+                rotation_(0, 1) = -1.0f;
+                rotation_(1, 1) = 0.0f;
+                break;
+            }
+        case IMU::Xdirection::BACK:
+            {
+                rotation_(0, 0) = -1.0f;
+                rotation_(1, 1) = -1.0f;
+                break;
+            }
+        case IMU::Xdirection::RIGHT:
+            {
+                rotation_(0, 0) = 0.0f;
+                rotation_(1, 0) = -1.0f;
+                rotation_(0, 1) = 1.0f;
+                rotation_(1, 1) = 0.0f;
+                break;
+            }
+        default:
+            break;
         }
+
+        switch (config.z_direction)
+        {
+        case IMU::Zdirection::UP:
+            {
+                break;
+            }
+        case IMU::Zdirection::DOWN:
+            {
+                rotation_(0, 1) *= -1.0f;
+                rotation_(1, 1) *= -1.0f;
+                rotation_(2, 2) = -1.0f;
+                break;
+            }
+        default:
+            break;
+        }
+
+        init();
     }
 
-    // 清零偏置
-    memset(gyro_offset_, 0, sizeof(gyro_offset_));
-
-    init();
-}
-
-BMI088::ErrorType BMI088::init()
-{
-    error_code_ = BMI088_NO_ERROR;
-    error_code_ = accelInit();
-    error_code_ = static_cast<ErrorType>(static_cast<uint8_t>(error_code_) | static_cast<uint8_t>(gyroInit()));
-
-    return error_code_;
-}
-
-void BMI088::calibrate()
-{
-    constexpr uint16_t kSampleCount = 6000;
-    float gyro_sum[3] = {0.0f};
-
-    for (uint16_t i = 0; i < kSampleCount; ++i)
+    BMI088::ErrorType BMI088::init()
     {
-        readGyro();
+        error_code_ = BMI088_NO_ERROR;
+        error_code_ = accelInit();
+        error_code_ = static_cast<ErrorType>(static_cast<uint8_t>(error_code_) | static_cast<uint8_t>(gyroInit()));
+
+        return error_code_;
+    }
+
+    void BMI088::calibrate()
+    {
+        constexpr uint16_t kSampleCount = 6000;
+        float gyro_sum[3] = {0.0f};
+
+        for (uint16_t i = 0; i < kSampleCount; ++i)
+        {
+            readGyro();
+            for (uint8_t j = 0; j < 3; ++j)
+                gyro_sum[j] += gyro_data_(j, 0);
+            osDelay(1);
+        }
         for (uint8_t j = 0; j < 3; ++j)
-            gyro_sum[j] += gyro_data_(j, 0);
-        osDelay(1);
+            gyro_offset_[j] = gyro_sum[j] / kSampleCount;
     }
-    for (uint8_t j = 0; j < 3; ++j)
-        gyro_offset_[j] = gyro_sum[j] / kSampleCount;
-}
 
-void BMI088::readData()
-{
-    readAccel();
-    readGyro();
-    readTemperature();
-}
-
-void BMI088::calculate()
-{
-    if (filter_type_ == FilterType::EKF)
+    void BMI088::readData()
     {
-        ekf_filter_->update(accel_data_, gyro_data_, sample_time_);
-        quaternion_ = ekf_filter_->getQuaternion();
-        euler_angle_ = ekf_filter_->getEulerAngle();
-        // logger_printf("%f,%f,%f,%f\r\n",quaternion_.w,quaternion_.x,quaternion_.y,quaternion_.z);
+        readAccel();
+        readGyro();
+        readTemperature();
     }
-    else if (filter_type_ == FilterType::MADGWICK)
+
+    void BMI088::calculate()
     {
-        madgwick_filter_->updateIMU(accel_data_, gyro_data_, quaternion_);
-        auto e = quaternion_.toEuler();
-        euler_angle_.roll_ = e.roll_;
-        euler_angle_.pitch_ = e.pitch_;
-        euler_angle_.yaw_ = e.yaw_;
-        euler_angle_.updateEulerAngle();
-    }
-}
-
-// =============================================================
-// 私有函数实现
-// =============================================================
-BMI088::ErrorType BMI088::accelInit()
-{
-    if (!spi_accel_.has_value())
-        return BMI088_NO_SENSOR;
-
-    accelReadReg(BMI088_ACC_CHIP_ID);
-    osDelay(10);
-    accelReadReg(BMI088_ACC_CHIP_ID);
-    osDelay(10);
-    accelWriteReg(BMI088_ACC_SOFTRESET, BMI088_ACC_SOFTRESET_VALUE);
-    osDelay(100);
-    accelReadReg(BMI088_ACC_CHIP_ID);
-    osDelay(10);
-    uint8_t chip_id = accelReadReg(BMI088_ACC_CHIP_ID);
-    //	logger_printf("accel chip id: %x\r\n", chip_id);
-    // if (chip_id != BMI088_ACC_CHIP_ID_VALUE && chip_id != 0x16)
-    //     return BMI088_NO_SENSOR;
-
-    uint16_t res;
-    // set accel sonsor config and check
-    for (int write_reg_num = 0; write_reg_num < BMI088_WRITE_ACCEL_REG_NUM; write_reg_num++)
-    {
-        accelWriteReg(accel_init_table[write_reg_num][0], accel_init_table[write_reg_num][1]);
-        osDelay(50);
-
-        res = accelReadReg(accel_init_table[write_reg_num][0]);
-        //		logger_printf("%d,%x,%x\r\n", write_reg_num, BMI088_Accel_Init_Table[write_reg_num][1], res);
-
-        osDelay(10);
-
-        if (res != accel_init_table[write_reg_num][1])
+        if (filter_type_ == FilterType::EKF)
         {
-            // write_reg_num--;
+            ekf_filter_->update(accel_data_, gyro_data_, sample_time_);
+            quaternion_ = ekf_filter_->getQuaternion();
+            euler_angle_ = ekf_filter_->getEulerAngle();
+            // logger_printf("%f,%f,%f,%f\r\n",quaternion_.w,quaternion_.x,quaternion_.y,quaternion_.z);
+        }
+        else if (filter_type_ == FilterType::MADGWICK)
+        {
+            madgwick_filter_->update(accel_data_, gyro_data_, sample_time_);
+            quaternion_ = madgwick_filter_->getQuaternion();
+            euler_angle_ = madgwick_filter_->getEulerAngle();
         }
     }
-    return BMI088_NO_ERROR;
-}
 
-BMI088::ErrorType BMI088::gyroInit()
-{
-    if (!spi_gyro_.has_value())
-        return BMI088_NO_SENSOR;
-
-    gyroReadReg(BMI088_GYRO_CHIP_ID);
-    osDelay(10);
-    gyroReadReg(BMI088_GYRO_CHIP_ID);
-    osDelay(10);
-    accelWriteReg(BMI088_GYRO_SOFTRESET, BMI088_GYRO_SOFTRESET);
-    osDelay(100);
-    gyroReadReg(BMI088_GYRO_CHIP_ID);
-    osDelay(10);
-    uint8_t chip_id = gyroReadReg(BMI088_GYRO_CHIP_ID);
-    //	logger_printf("gyro chip id: %x\r\n", chip_id);
-    if (chip_id != BMI088_GYRO_CHIP_ID_VALUE)
-        return BMI088_NO_SENSOR;
-
-    uint8_t res;
-    // set gyro sonsor config and check
-    for (int write_reg_num = 0; write_reg_num < BMI088_WRITE_GYRO_REG_NUM; write_reg_num++)
+    // =============================================================
+    // 私有函数实现
+    // =============================================================
+    BMI088::ErrorType BMI088::accelInit()
     {
-        gyroWriteReg(gyro_init_table[write_reg_num][0], gyro_init_table[write_reg_num][1]);
-        osDelay(10);
-        res = gyroReadReg(gyro_init_table[write_reg_num][0]);
-        //		logger_printf("%d,%x,%x\r\n", write_reg_num, BMI088_Gyro_Init_Table[write_reg_num][1], res);
-        osDelay(10);
+        if (!spi_accel_.has_value())
+            return BMI088_NO_SENSOR;
 
-        if (res != gyro_init_table[write_reg_num][1])
+        accelReadReg(BMI088_ACC_CHIP_ID);
+        osDelay(10);
+        accelReadReg(BMI088_ACC_CHIP_ID);
+        osDelay(10);
+        accelWriteReg(BMI088_ACC_SOFTRESET, BMI088_ACC_SOFTRESET_VALUE);
+        osDelay(100);
+        accelReadReg(BMI088_ACC_CHIP_ID);
+        osDelay(10);
+        uint8_t chip_id = accelReadReg(BMI088_ACC_CHIP_ID);
+        //	logger_printf("accel chip id: %x\r\n", chip_id);
+        // if (chip_id != BMI088_ACC_CHIP_ID_VALUE && chip_id != 0x16)
+        //     return BMI088_NO_SENSOR;
+
+        uint16_t res;
+        // set accel sonsor config and check
+        for (int write_reg_num = 0; write_reg_num < BMI088_WRITE_ACCEL_REG_NUM; write_reg_num++)
         {
-            write_reg_num--;
+            accelWriteReg(accel_init_table[write_reg_num][0], accel_init_table[write_reg_num][1]);
+            osDelay(50);
+
+            res = accelReadReg(accel_init_table[write_reg_num][0]);
+            //		logger_printf("%d,%x,%x\r\n", write_reg_num, BMI088_Accel_Init_Table[write_reg_num][1], res);
+
+            osDelay(10);
+
+            if (res != accel_init_table[write_reg_num][1])
+            {
+                // write_reg_num--;
+            }
         }
+        return BMI088_NO_ERROR;
     }
-    return BMI088_NO_ERROR;
-}
 
-void BMI088::readAccel()
-{
-    uint8_t buf[6];
-    accelReadRegs(BMI088_ACCEL_XOUT_L, buf, 6);
-    int16_t raw_x = (int16_t)((buf[1] << 8) | buf[0]);
-    int16_t raw_y = (int16_t)((buf[3] << 8) | buf[2]);
-    int16_t raw_z = (int16_t)((buf[5] << 8) | buf[4]);
-
-    // logger_printf("accel raw data: %d,%d,%d\r\n",raw_x,raw_y,raw_z);
-    accel_data_(0, 0) = raw_x * accel_sensitivity_ * accel_scale_;
-    accel_data_(1, 0) = raw_y * accel_sensitivity_ * accel_scale_;
-    accel_data_(2, 0) = raw_z * accel_sensitivity_ * accel_scale_;
-}
-
-void BMI088::readGyro()
-{
-    uint8_t buf[8];
-    gyroReadRegs(BMI088_GYRO_CHIP_ID, buf, 8);
-    int16_t raw_x = (int16_t)((buf[3] << 8) | buf[2]);
-    int16_t raw_y = (int16_t)((buf[5] << 8) | buf[4]);
-    int16_t raw_z = (int16_t)((buf[7] << 8) | buf[6]);
-
-    // logger_printf("gyro raw data: %d,%d,%d\r\n",raw_x,raw_y,raw_z);
-    gyro_data_(0, 0) = (float)raw_x * gyro_sensitivity_ - gyro_offset_[0];
-    gyro_data_(1, 0) = (float)raw_y * gyro_sensitivity_ - gyro_offset_[1];
-    gyro_data_(2, 0) = (float)raw_z * gyro_sensitivity_ - gyro_offset_[2];
-}
-
-void BMI088::readTemperature()
-{
-    uint8_t buf[2];
-    accelReadRegs(BMI088_TEMP_M, buf, 2);
-    int16_t raw_temp = (int16_t)((buf[0] << 3) | (buf[1] >> 5));
-    if (raw_temp > 1023)
-        raw_temp -= 2048;
-    temperature_ = (float)raw_temp * BMI088_TEMP_FACTOR + BMI088_TEMP_OFFSET;
-}
-
-// ------------------------
-// 底层读写封装（代替宏）
-// ------------------------
-inline void BMI088::accelWriteReg(uint8_t reg, uint8_t data)
-{
-    spi_accel_->csEnable();
-    spi_accel_->writeReg(reg, data);
-    spi_accel_->csDisable();
-}
-
-inline uint8_t BMI088::accelReadReg(uint8_t reg)
-{
-    spi_accel_->csEnable();
-    spi_accel_->byte(reg | 0x80);
-    spi_accel_->byte(reg | 0x80);
-    uint8_t val = spi_accel_->byte(0x55);
-    spi_accel_->csDisable();
-    return val;
-}
-
-inline void BMI088::accelReadRegs(uint8_t reg, uint8_t* data, uint16_t len)
-{
-    spi_accel_->csEnable();
-    spi_accel_->byte(reg | 0x80);
-    spi_accel_->byte(reg | 0x80);
-    for (uint16_t i = 0; i < len; i++)
+    BMI088::ErrorType BMI088::gyroInit()
     {
-        data[i] = spi_accel_->byte(0x55);
+        if (!spi_gyro_.has_value())
+            return BMI088_NO_SENSOR;
+
+        gyroReadReg(BMI088_GYRO_CHIP_ID);
+        osDelay(10);
+        gyroReadReg(BMI088_GYRO_CHIP_ID);
+        osDelay(10);
+        accelWriteReg(BMI088_GYRO_SOFTRESET, BMI088_GYRO_SOFTRESET);
+        osDelay(100);
+        gyroReadReg(BMI088_GYRO_CHIP_ID);
+        osDelay(10);
+        uint8_t chip_id = gyroReadReg(BMI088_GYRO_CHIP_ID);
+        //	logger_printf("gyro chip id: %x\r\n", chip_id);
+        if (chip_id != BMI088_GYRO_CHIP_ID_VALUE)
+            return BMI088_NO_SENSOR;
+
+        uint8_t res;
+        // set gyro sonsor config and check
+        for (int write_reg_num = 0; write_reg_num < BMI088_WRITE_GYRO_REG_NUM; write_reg_num++)
+        {
+            gyroWriteReg(gyro_init_table[write_reg_num][0], gyro_init_table[write_reg_num][1]);
+            osDelay(10);
+            res = gyroReadReg(gyro_init_table[write_reg_num][0]);
+            //		logger_printf("%d,%x,%x\r\n", write_reg_num, BMI088_Gyro_Init_Table[write_reg_num][1], res);
+            osDelay(10);
+
+            if (res != gyro_init_table[write_reg_num][1])
+            {
+                write_reg_num--;
+            }
+        }
+        return BMI088_NO_ERROR;
     }
-    spi_accel_->csDisable();
-}
 
-inline void BMI088::gyroWriteReg(uint8_t reg, uint8_t data)
-{
-    spi_gyro_->csEnable();
-    spi_gyro_->writeReg(reg, data);
-    spi_gyro_->csDisable();
-}
-
-inline uint8_t BMI088::gyroReadReg(uint8_t reg)
-{
-    spi_gyro_->csEnable();
-    uint8_t val;
-    val = spi_gyro_->readReg(reg | 0x80);
-    spi_gyro_->csDisable();
-    return val;
-}
-
-inline void BMI088::gyroReadRegs(uint8_t reg, uint8_t* data, uint16_t len)
-{
-    spi_gyro_->csEnable();
-    spi_gyro_->byte(reg | 0x80);
-    for (uint16_t i = 0; i < len; i++)
+    void BMI088::readAccel()
     {
-        data[i] = spi_gyro_->byte(0x55);
-    }
-    spi_gyro_->csDisable();
-}
+        uint8_t buf[6];
+        accelReadRegs(BMI088_ACCEL_XOUT_L, buf, 6);
+        int16_t raw_x = (int16_t)((buf[1] << 8) | buf[0]);
+        int16_t raw_y = (int16_t)((buf[3] << 8) | buf[2]);
+        int16_t raw_z = (int16_t)((buf[5] << 8) | buf[4]);
 
-}
+        // logger_printf("accel raw data: %d,%d,%d\r\n",raw_x,raw_y,raw_z);
+        accel_data_(0, 0) = (float)raw_x * accel_sensitivity_ * accel_scale_;
+        accel_data_(1, 0) = (float)raw_y * accel_sensitivity_ * accel_scale_;
+        accel_data_(2, 0) = (float)raw_z * accel_sensitivity_ * accel_scale_;
+        accel_data_ = rotation_ * accel_data_;
+    }
+
+    void BMI088::readGyro()
+    {
+        uint8_t buf[8];
+        gyroReadRegs(BMI088_GYRO_CHIP_ID, buf, 8);
+        int16_t raw_x = (int16_t)((buf[3] << 8) | buf[2]);
+        int16_t raw_y = (int16_t)((buf[5] << 8) | buf[4]);
+        int16_t raw_z = (int16_t)((buf[7] << 8) | buf[6]);
+
+        // logger_printf("gyro raw data: %d,%d,%d\r\n",raw_x,raw_y,raw_z);
+        gyro_data_(0, 0) = (float)raw_x * gyro_sensitivity_ - gyro_offset_[0];
+        gyro_data_(1, 0) = (float)raw_y * gyro_sensitivity_ - gyro_offset_[1];
+        gyro_data_(2, 0) = (float)raw_z * gyro_sensitivity_ - gyro_offset_[2];
+        gyro_data_ = rotation_ * gyro_data_;
+    }
+
+    void BMI088::readTemperature()
+    {
+        uint8_t buf[2];
+        accelReadRegs(BMI088_TEMP_M, buf, 2);
+        int16_t raw_temp = (int16_t)((buf[0] << 3) | (buf[1] >> 5));
+        if (raw_temp > 1023)
+            raw_temp -= 2048;
+        temperature_ = (float)raw_temp * BMI088_TEMP_FACTOR + BMI088_TEMP_OFFSET;
+    }
+
+    // ------------------------
+    // 底层读写封装（代替宏）
+    // ------------------------
+    inline void BMI088::accelWriteReg(uint8_t reg, uint8_t data)
+    {
+        spi_accel_->csEnable();
+        spi_accel_->writeReg(reg, data);
+        spi_accel_->csDisable();
+    }
+
+    inline uint8_t BMI088::accelReadReg(uint8_t reg)
+    {
+        spi_accel_->csEnable();
+        spi_accel_->byte(reg | 0x80);
+        spi_accel_->byte(reg | 0x80);
+        uint8_t val = spi_accel_->byte(0x55);
+        spi_accel_->csDisable();
+        return val;
+    }
+
+    inline void BMI088::accelReadRegs(uint8_t reg, uint8_t* data, uint16_t len)
+    {
+        spi_accel_->csEnable();
+        spi_accel_->byte(reg | 0x80);
+        spi_accel_->byte(reg | 0x80);
+        for (uint16_t i = 0; i < len; i++)
+        {
+            data[i] = spi_accel_->byte(0x55);
+        }
+        spi_accel_->csDisable();
+    }
+
+    inline void BMI088::gyroWriteReg(uint8_t reg, uint8_t data)
+    {
+        spi_gyro_->csEnable();
+        spi_gyro_->writeReg(reg, data);
+        spi_gyro_->csDisable();
+    }
+
+    inline uint8_t BMI088::gyroReadReg(uint8_t reg)
+    {
+        spi_gyro_->csEnable();
+        uint8_t val;
+        val = spi_gyro_->readReg(reg | 0x80);
+        spi_gyro_->csDisable();
+        return val;
+    }
+
+    inline void BMI088::gyroReadRegs(uint8_t reg, uint8_t* data, uint16_t len)
+    {
+        spi_gyro_->csEnable();
+        spi_gyro_->byte(reg | 0x80);
+        for (uint16_t i = 0; i < len; i++)
+        {
+            data[i] = spi_gyro_->byte(0x55);
+        }
+        spi_gyro_->csDisable();
+    }
+
+} // namespace ega

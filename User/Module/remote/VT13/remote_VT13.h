@@ -5,93 +5,114 @@
 #ifndef MODULE_REMOTE_VT13_H_
 #define MODULE_REMOTE_VT13_H_
 
-#include <optional>
 #include <cstdint>
 #include <cstring>
-#include "driver_usart.h"
+#include <optional>
 #include "daemon.h"
+#include "driver_usart.h"
 
-// 默认串口huart6
+// 默认串口huart7
 // 参考：VT13 手册 - 串口参数 921600/8N1/无校验/无流控；每 14ms 输出 21 字节帧；见"Remote Control Data" 章节
 // 帧格式(位偏移)：Header0(0..7)=0xA9, Header1(8..15)=0x53, CRC 在 152..167；其余见 .cpp 解析表
 namespace ega
 {
-    namespace VT13Key
-    {
-        static constexpr uint8_t W = 0;
-        static constexpr uint8_t S = 1;
-        static constexpr uint8_t A = 2;
-        static constexpr uint8_t D = 3;
-        static constexpr uint8_t SHIFT = 4;
-        static constexpr uint8_t CTRL = 5;
-        static constexpr uint8_t Q = 6;
-        static constexpr uint8_t E = 7;
-        static constexpr uint8_t R = 8;
-        static constexpr uint8_t F = 9;
-        static constexpr uint8_t G = 10;
-        static constexpr uint8_t Z = 11;
-        static constexpr uint8_t X = 12;
-        static constexpr uint8_t C = 13;
-        static constexpr uint8_t V = 14;
-        static constexpr uint8_t B = 15;
-    }
-
     class VT13
     {
-        /* ====================== 1. 编译期常量 & 类型别名 ====================== */
+        /* ====================== 1. 编译期常量 ====================== */
     public:
-        // 通道原始范围（来自手册）
-        static constexpr int16_t RC_MIN = 364;
-        static constexpr int16_t RC_CEN = 1024;
-        static constexpr int16_t RC_MAX = 1684;
+        // 摇杆偏置
+        static constexpr int16_t RC_CH_VALUE_MIN = 364;
+        static constexpr int16_t RC_CH_VALUE_OFFSET = 1024;
+        static constexpr int16_t RC_CH_VALUE_MAX = 1684;
 
-        // 21 字节帧大小
-        static constexpr uint16_t FRAME_SIZE = 21;
-        // 键鼠数组索引
-        static constexpr uint8_t MOUSE_PRESS = 0;
-        static constexpr uint8_t MOUSE_CLICK = 1;
-
-        static constexpr uint8_t KEY_PRESS = 0;
-        static constexpr uint8_t KEY_CLICK = 1;
-        static constexpr uint8_t KEY_PRESS_WITH_CTRL = 2;
-        static constexpr uint8_t KEY_PRESS_WITH_SHIFT = 3;
+    private:
+        static constexpr uint16_t DBUS_FRAME_SIZE = 21;
         /* ====================== 2. 内部类型定义 ====================== */
     public:
-        // 物理拨位：C/N/S -> 0/1/2
-        enum ModeSwitch : uint8_t { MODE_C = 0, MODE_N = 1, MODE_S = 2 };
-
-        struct Key_t
+        enum class RCSwitchState : uint8_t
         {
-            union
-            {
-                struct
-                {
-                    uint16_t w : 1, s : 1, a : 1, d : 1, shift : 1, ctrl : 1, q : 1, e : 1,
-                        r : 1, f : 1, g : 1, z : 1, x : 1, c : 1, v : 1, b : 1;
-                };
-
-                uint16_t keys{0};
-            };
+            C = 0,
+            N = 1,
+            S = 2,
         };
+        enum class RCRockerIndex : uint8_t
+        {
+            RIGHT_HORIZONTAL = 0,
+            RIGHT_VERTICAL = 1,
+            LEFT_HORIZONTAL = 2,
+            LEFT_VERTICAL = 3,
+        };
+        enum class MouseState : uint8_t
+        {
+            PRESSED = 0,
+            CLICKED = 1,
+        };
+        enum class MouseIndex : uint8_t
+        {
+            X = 0,
+            Y = 1,
+            Z = 2,
+        };
+        enum class KeyState : uint8_t
+        {
+            PRESSED = 0,
+            CLICKED = 1,
+        };
+        enum class KeyIndex : uint16_t
+        {
+            W = 0,
+            S,
+            A,
+            D,
+            SHIFT,
+            CTRL,
+            Q,
+            E,
+            R,
+            F,
+            G,
+            Z,
+            X,
+            C,
+            V,
+            B,
+        };
+        struct KeyData
+        {
+            uint16_t raw;
 
+            // 获取特定位的状态
+            uint8_t get(KeyIndex key) const { return (raw & (1U << static_cast<uint16_t>(key))) ? 1 : 0; }
+
+            // 设置特定位的状态
+            void set(KeyIndex key, bool value)
+            {
+                auto mask = static_cast<uint16_t>(1U << static_cast<uint16_t>(key));
+                if (value)
+                {
+                    raw |= mask; // 将对应位置为 1
+                }
+                else
+                {
+                    raw &= ~mask; // 将对应位置为 0
+                }
+            }
+        };
         struct RCData
         {
             struct
             {
-                // 注意：VT13 的通道顺序（相对 DT7/DBUS 有差异）：
-                // ch0: 右水平, ch1: 右竖直, ch2: 左竖直, ch3: 左水平
                 int16_t rocker_r_h; // ch0 - 右水平
                 int16_t rocker_r_v; // ch1 - 右竖直
                 int16_t rocker_l_v; // ch2 - 左竖直
                 int16_t rocker_l_h; // ch3 - 左水平
                 int16_t dial; // 拨轮（同样 11 位，范围同上）
-                uint8_t mode_switch; // 0/1/2 -> C/N/S
+                RCSwitchState mode_switch; // 0/1/2 -> C/N/S
                 uint8_t pause; // 0/1
                 uint8_t btn_left; // 自定义左 0/1
                 uint8_t btn_right; // 自定义右 0/1
                 uint8_t trigger; // 扳机 0/1
             } rc;
-
             struct
             {
                 int16_t x;
@@ -101,116 +122,65 @@ namespace ega
                 uint8_t press_r[2];
                 uint8_t press_m[2];
             } mouse;
-
-            Key_t key[4]; // [PRESS, CLICK, PRESS_WITH_CTRL, PRESS_WITH_SHIFT]
+            KeyData keys[2]; // [PRESS, CLICK]
         };
-
-        /* ====================== 3. 静态接口 ====================== */
+        /* ====================== 3. 方法接口 ====================== */
     public:
-        static VT13& getInstance();
-
-        // 初始化（默认使用 huart6，可按需改）
-        static bool init();
-        static bool init(const UARTInstance::Config& config);
-        static bool init(UART_HandleTypeDef* huart);
-
-            public:
-        static void start();
-        static void stop();
-
-        // 数据接口
-        static const RCData& getData() { return getInstance().rc_current_; }
-        static bool isFrameValid() { return getInstance().frame_valid_; }
-        static bool isOnline() { return getInstance().is_online_; }
-
-        // 鼠标/键盘 API（Click：查询即清零）
-        static bool isMouseLeftPressed() { return (getInstance().rc_current_.mouse.press_l[MOUSE_PRESS]) & 0x1; }
-        static bool isMouseRightPressed() { return (getInstance().rc_current_.mouse.press_r[MOUSE_PRESS]) & 0x1; }
-        static bool isMouseMiddlePressed() { return (getInstance().rc_current_.mouse.press_m[MOUSE_PRESS]) & 0x1; }
-
-        static bool isMouseLeftClicked()
-        {
-            bool v = getInstance().rc_current_.mouse.press_l[MOUSE_CLICK];
-            getInstance().rc_current_.mouse.press_l[MOUSE_CLICK] = 0;
-            return v;
-        }
-
-        static bool isMouseRightClicked()
-        {
-            bool v = getInstance().rc_current_.mouse.press_r[MOUSE_CLICK];
-            getInstance().rc_current_.mouse.press_r[MOUSE_CLICK] = 0;
-            return v;
-        }
-
-        static bool isMouseMiddleClicked()
-        {
-            bool v = getInstance().rc_current_.mouse.press_m[MOUSE_CLICK];
-            getInstance().rc_current_.mouse.press_m[MOUSE_CLICK] = 0;
-            return v;
-        }
-
-        static bool isKeyPressed(int idx)
-        {
-            if (idx < 0 || idx >= 16) return false;
-            return (getInstance().rc_current_.key[KEY_PRESS].keys >> idx) & 0x1;
-        }
-
-        static bool isKeyClicked(int idx)
-        {
-            if (idx < 0 || idx >= 16) return false;
-            const uint16_t mask = static_cast<uint16_t>(1u) << idx;
-            const bool clicked = (getInstance().rc_current_.key[KEY_CLICK].keys & mask) != 0;
-            getInstance().rc_current_.key[KEY_CLICK].keys &= static_cast<uint16_t>(~mask);
-            return clicked;
-        }
-
-        static bool isCtrlComboPressed(int idx)
-        {
-            if (idx < 0 || idx >= 16) return false;
-            return (getInstance().rc_current_.key[KEY_PRESS_WITH_CTRL].keys >> idx) & 0x1;
-        }
-
-        static bool isShiftComboPressed(int idx)
-        {
-            if (idx < 0 || idx >= 16) return false;
-            return (getInstance().rc_current_.key[KEY_PRESS_WITH_SHIFT].keys >> idx) & 0x1;
-        }
-
-        // 调试输出
-        static void debugPrintKeys();
-        static void debugPrintComboKeys();
-
-    private:
-        static void rxCallback(uint8_t* data, uint16_t size);
-
-        /* ====================== 4. 构造 / 析构 ====================== */
-    private:
-        VT13() = default;
         VT13(const VT13&) = delete;
         VT13& operator=(const VT13&) = delete;
 
-        /* ====================== 5. 公共接口 ====================== */
+        explicit VT13(const UARTInstance::Config& config);
+        VT13();
 
+        void start();
+        void stop();
 
-        /* ====================== 6. 受保护接口 ====================== */
-
-        /* ====================== 7. 成员变量 ====================== */
+        void debug(); // TODO:
+        /* ====================== 4. API ====================== */
+    public:
+        // 完整数据帧
+        const RCData& getData() const;
+        // 遥控器通道
+        int16_t getRockerValue(RCRockerIndex ch) const;
+        int16_t getDialValue() const;
+        RCSwitchState getModeSwitch() const;
+        bool isPausePressed() const;
+        bool isTriggerPressed() const;
+        bool isLeftBtnPressed() const;
+        bool isRightBtnPressed() const;
+        // 鼠标通道
+        uint8_t getMouseValue(MouseIndex ch) const;
+        bool isMouseLeftPressed() const;
+        bool isMouseRightPressed() const;
+        bool isMouseMiddlePressed() const;
+        bool isMouseLeftClicked();
+        bool isMouseRightClicked();
+        bool isMouseMiddleClicked();
+        // 键盘通道
+        bool isKeyPressed(KeyIndex key) const;
+        bool isKeyPressedWithCtrl(KeyIndex key) const;
+        bool isKeyPressedWithShift(KeyIndex key) const;
+        bool isKeyClicked(KeyIndex key);
+        bool isKeyClickedWithCtrl(KeyIndex key);
+        bool isKeyClickedWithShift(KeyIndex key);
+        // 其他接口
+        bool isFrameValid() const;
+        bool isOnline() const;
+        /* ====================== 5. 成员变量 ====================== */
     private:
         std::optional<UARTInstance> uart_instance_;
         std::optional<Daemon> daemon_;
-
-        bool frame_valid_{false};
-        bool is_online_{false};
-        bool inited_{false};
+        bool is_frame_valid_ = false;
+        bool is_online_ = false;
 
         RCData rc_current_{};
-        RCData rc_last_{}; // 用于 click 上升沿检测
-    private:
-        bool doInit(const UARTInstance::Config& cfg);
-        void parseFrame(uint8_t* data, uint16_t size);
+        RCData rc_last_{};
 
+        void DBUSCallback(uint8_t* data, uint16_t size);
+        void parseFrame(const uint8_t* data, uint16_t size); // 解析遥控器协议
+        static RCSwitchState convertSwitchState(int16_t val);
         void offlineCallback();
     };
-}
+} // namespace ega
 
-#endif //MODULE_REMOTE_VT13_H_
+#endif // MODULE_REMOTE_VT13_H_

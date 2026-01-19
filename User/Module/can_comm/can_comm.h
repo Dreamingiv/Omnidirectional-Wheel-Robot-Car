@@ -121,7 +121,7 @@ namespace ega
     template <typename T>
     CanComm<T>::CanComm(const Config& config)
         : //tx_id_(config.tx_id),rx_id_(config.rx_id),
-        can_instance_({
+        can_instance_(CANInstance::Config{
             .handle = config.handle,
             .tx_id = config.tx_id,
             .rx_id = config.rx_id,

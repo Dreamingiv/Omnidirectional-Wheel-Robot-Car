@@ -6,18 +6,18 @@
 
 namespace ega
 {
-    std::unique_ptr<IMU> IMU::create(const IMU::Config& config)
-    {
-        std::unique_ptr<IMU> res = nullptr;
-        switch (config.type)
-        {
-        case Type::BMI088:
-            return std::make_unique<BMI088>(config);
-
-        default:
-            return nullptr;
-        }
-    }
+    // std::unique_ptr<IMU> IMU::create(const IMU::Config& config)
+    // {
+    //     std::unique_ptr<IMU> res = nullptr;
+    //     switch (config.type)
+    //     {
+    //     case Type::BMI088:
+    //         return std::make_unique<BMI088>(config);
+    //
+    //     default:
+    //         return nullptr;
+    //     }
+    // }
 
     void inline IMU::update()
     {

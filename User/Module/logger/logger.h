@@ -77,18 +77,6 @@ namespace ega
 
         /* ====================== 2. 内部类型定义 ====================== */
     public:
-        struct Config
-        {
-            UARTInstance::Config uart_config{
-                .handle = &huart1,
-                .tx_type = ega::UARTInstance::DMA, ///< 使用 DMA 发送（可按需改为 IT）
-                .rx_type = ega::UARTInstance::IT_IDLE, ///< 中断接收
-                .rx_size = 64, ///< Logger 默认只发不收，如有必要后期可以拓展
-                .use_fifo = true, ///< 使用 FIFO 缓冲
-                .queue_mx_size = 4, ///< 队列容量，最多可连续调用4次
-            };
-        };
-
         /* ====================== 3. 静态接口 ====================== */
     public:
         /**
@@ -97,16 +85,15 @@ namespace ega
          */
         static Logger& getInstance();
 
-        static void init(const Config& cfg = {
+        static void init(const UARTInstance::Config& cfg = {
             //默认配置
-            .uart_config = {
-                .handle = &huart1,
-                .tx_type = ega::UARTInstance::DMA, ///< 使用 DMA 发送（可按需改为 IT）
-                .rx_type = ega::UARTInstance::IT_IDLE, ///< 中断接收
-                .rx_size = 64, ///< Logger 默认只发不收，如有必要后期可以拓展
-                .use_fifo = true, ///< 使用 FIFO 缓冲
-                .queue_mx_size = 4, ///< 队列容量，最多可连续调用4次
-            }
+            .handle = &huart1,
+            .tx_type = ega::UARTInstance::DMA, ///< 使用 DMA 发送（可按需改为 IT）
+            .rx_type = ega::UARTInstance::IT_IDLE, ///< 中断接收
+            .rx_size = 64, ///< Logger 默认只发不收，如有必要后期可以拓展
+            .use_fifo = true, ///< 使用 FIFO 缓冲
+            .queue_mx_size = 4, ///< 队列容量，最多可连续调用4次
+
         });
 
         /**
@@ -120,8 +107,8 @@ namespace ega
          * @brief 输出日志
          */
 #ifdef LOG_LEVEL
-		static void Log(const char *fmt, ...);
-		void VLog(const char *fmt, va_list args);
+        static void Log(const char* fmt, ...);
+        void VLog(const char* fmt, va_list args);
 #endif
         /* ====================== 4. 构造 / 析构 ====================== */
     public:

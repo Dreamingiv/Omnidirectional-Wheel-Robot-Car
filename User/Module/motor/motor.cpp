@@ -1,56 +1,44 @@
 #include "motor.h"
 
-#include "DJImotor.h"
-#include "DMmotor.h"
+#include "DJIMotor.h"
+#include "DMMotor.h"
+#include "LKMotor.h"
 
 namespace ega
 {
     void Motor::controlAll()
     {
+        // 维持原有结构：基类统一调度到各品牌的批处理
         DJIMotor::controlAll();
         DMMotor::controlAll();
+        LKMotor::controlAll();
     }
 
     void Motor::enableAll()
     {
         DJIMotor::enableAll();
         DMMotor::enableAll();
+        LKMotor::enableAll();
     }
 
     void Motor::disableAll()
     {
         DJIMotor::disableAll();
         DMMotor::disableAll();
+        LKMotor::disableAll();
     }
 
     bool Motor::hasDisabledMotor()
     {
-        //todo
-        return false;
+        return DJIMotor::hasDisabledMotor()
+            || DMMotor::hasDisabledMotor()
+            || LKMotor::hasDisabledMotor();
     }
 
     bool Motor::hasOfflineMotor()
     {
-        //todo
-        return false;
+        return DJIMotor::hasOfflineMotor()
+            || DMMotor::hasOfflineMotor()
+            || LKMotor::hasOfflineMotor();
     }
-
-
-    std::unique_ptr<Motor> Motor::create(const Motor::Config& config)
-    {
-        switch (config.type)
-        {
-        case Type::GM6020:
-        case Type::M3508:
-        case Type::M2006:
-            return std::make_unique<DJIMotor>(config);
-
-        case Type::DM_MOTOR:
-            return std::make_unique<DMMotor>(config);
-
-        case Type::OTHER:
-        default:
-            return nullptr;
-        }
-    }
-}
+} // namespace ega

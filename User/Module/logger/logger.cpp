@@ -13,14 +13,14 @@ namespace ega
         return instance;
     }
 
-    void Logger::init(const Logger::Config& cfg)
+    void Logger::init(const UARTInstance::Config& cfg)
     {
         if (getInstance().inited_)
         {
             return;
         }
 
-        getInstance().uart_.emplace(cfg.uart_config);
+        getInstance().uart_.emplace(cfg);
         getInstance().inited_ = true;
     }
 

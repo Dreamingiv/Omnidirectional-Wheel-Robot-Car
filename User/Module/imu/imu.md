@@ -32,15 +32,19 @@
 IMU::Config imu_config = {
     .type = IMU::Type::BMI088,
     .filter_type = IMU::FilterType::EKF,
-    .sample_time = 0.001
+    .sample_time = 0.001,
+    .x_direction = ega::IMU::Xdirection::FRONT,
+    .z_direction = ega::IMU::Zdirection::UP,
 };
 ```
 ### 3.2 配置参数说明
 | 参数  | 说明 | 可选值 | 注意事项 |
 |-----|----|-----|------|
 | `type` | IMU 设备类型 | BMI088 / MPU6050等 | 默认为板载的BMI088 |
-| `filter_type` | 姿态融合滤波器类型 | EKF / MADGWICK |  |
+| `filter_type` | 姿态融合滤波器类型 | EKF / MADGWICK | |
 | `sample_time` | 采样时间 | 默认0.001 |  |
+| `x_direction` | IMU的x轴指向 | FRONT / LEFT / BACK / RIGHT | 见`6. 注意事项` |
+| `z_direction` | IMU的z轴指向 | UP / DOWN | 见`6. 注意事项` |
 
 ## 4. 使用方法
 ### 4.1 初始化
@@ -49,6 +53,8 @@ IMU::Config imu_config{
     .type = IMU::Type::BMI088,
     .filter_type = IMU::FilterType::EKF,
     .sample_time = 0.001,
+    .x_direction = ega::IMU::Xdirection::FRONT,
+    .z_direction = ega::IMU::Zdirection::UP,
 };
 BMI088 bmi088(imu_config);
 ```
@@ -81,7 +87,16 @@ logger_printf("%f,%f,%f,%f\r\n", result.w, result.x, result.y, result.z);
 
 
 ## 6. 注意事项
+### 如何确定`x_direction`和`z_direction`：
 
+- x_direction: 以车前进的方向为前方，IMU的x轴指向哪里就是哪里(*前、后、左、右* 对应 `FRONT`, `BACK`, `LEFT`, `RIGHT` )
+- z_direction: 板子正面朝上安装为`UP`，正面朝下安装为`DOWN`
+
+按照上述要求配置后，解算得到的四元数和欧拉角符合 ***以车前进方向为x轴，向上为z轴的右手坐标系***
+
+### 滤波器
+- `EKF`: 零漂更小，但pitch轴的允许量程较小（不到±90°），超出这个范围会严重发散
+- `MADGWICK`: 三轴的旋转都没有限制，但零漂相比EKF较大，需要的话可以调用校准
 
 ## 7.更新日志
 | 日期         | 更新内容        |

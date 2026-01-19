@@ -11,26 +11,19 @@ struct Empty
 {
 };
 
-template <int x_hatSize, int uSize, int zSize>
-class KalmanFilter
+template <int x_hatSize, int zSize>
+class KalmanFilter_without_U
 {
-    using Mat_u = std::conditional_t<(uSize > 0), Mat_f32<uSize, 1>, Empty>;
-    using Mat_B = std::conditional_t<(uSize > 0), Mat_f32<x_hatSize, uSize>, Empty>;
-
 public:
-    KalmanFilter(Mat_f32<x_hatSize, x_hatSize> Q,
-                 Mat_f32<zSize, zSize>         R)
-        : Q_(Q), R_(R)
+    KalmanFilter_without_U(Matrixf<x_hatSize, x_hatSize> Q, Matrixf<zSize, zSize> R) : Q_(Q), R_(R) {}
+
+    KalmanFilter_without_U(float Q, float R)
     {
+        Q_ = matrixf::eye<x_hatSize, x_hatSize>() * Q;
+        R_ = matrixf::eye<zSize, zSize>() * R;
     }
 
-    KalmanFilter(float Q, float R)
-    {
-        Q_ = MatrixF32::eye<x_hatSize, x_hatSize>() * Q;
-        R_ = MatrixF32::eye<zSize, zSize>() * R;
-    }
-
-    Mat_f32<x_hatSize, 1> update(Mat_f32<zSize, 1> measure)
+    Matrixf<x_hatSize, 1> update(Matrixf<zSize, 1> measure)
     {
         z_ = measure;
         x_hat_minusUpdate();
@@ -40,12 +33,69 @@ public:
         P_Update();
         for (int i = 0; i < x_hatSize; i++)
         {
-            if (P_(i, i) < 1e-6) { P_(i, i) = 1e-6; }
+            if (P_(i, i) < 1e-6)
+            {
+                P_(i, i) = 1e-6;
+            }
         }
         return x_hat_;
     }
 
-    Mat_f32<x_hatSize, 1> update(Mat_f32<zSize, 1> measure, Mat_u u)
+private:
+    void x_hat_minusUpdate() { x_hat_minus_ = F_ * x_hat_; }
+
+    void P_minusUpdate() { P_minus_ = F_ * P_ * F_.trans() + Q_; }
+
+    void setK() { K_ = P_minus_ * H_.trans() * matrixf::inv(H_ * P_minus_ * H_.trans() + R_); }
+
+    void x_hatUpdate() { x_hat_ = x_hat_minus_ + K_ * (z_ - H_ * x_hat_minus_); }
+
+    void P_Update() { P_ = (matrixf::eye<x_hatSize, x_hatSize>() - K_ * H_) * P_minus_; }
+
+public:
+    Matrixf<x_hatSize, 1>         x_hat_;
+    Matrixf<x_hatSize, 1>         x_hat_minus_;
+    Matrixf<zSize, 1>             z_;
+    Matrixf<x_hatSize, x_hatSize> P_;
+    Matrixf<x_hatSize, x_hatSize> P_minus_;
+    Matrixf<x_hatSize, x_hatSize> F_;
+    Matrixf<zSize, x_hatSize>     H_;
+    Matrixf<x_hatSize, x_hatSize> Q_;
+    Matrixf<zSize, zSize>         R_;
+    Matrixf<x_hatSize, zSize>     K_;
+};
+
+template <int x_hatSize, int uSize, int zSize>
+class KalmanFilter_with_U
+{
+public:
+    KalmanFilter_with_U(Matrixf<x_hatSize, x_hatSize> Q, Matrixf<zSize, zSize> R) : Q_(Q), R_(R) {}
+
+    KalmanFilter_with_U(float Q, float R)
+    {
+        Q_ = matrixf::eye<x_hatSize, x_hatSize>() * Q;
+        R_ = matrixf::eye<zSize, zSize>() * R;
+    }
+
+    Matrixf<x_hatSize, 1> update(Matrixf<zSize, 1> measure)
+    {
+        z_ = measure;
+        x_hat_minusUpdate();
+        P_minusUpdate();
+        setK();
+        x_hatUpdate();
+        P_Update();
+        for (int i = 0; i < x_hatSize; i++)
+        {
+            if (P_(i, i) < 1e-6)
+            {
+                P_(i, i) = 1e-6;
+            }
+        }
+        return x_hat_;
+    }
+
+    Matrixf<x_hatSize, 1> update(Matrixf<zSize, 1> measure, Matrixf<uSize, 1> u)
     {
         z_ = measure;
         u_ = u;
@@ -56,62 +106,39 @@ public:
         P_Update();
         for (int i = 0; i < x_hatSize; i++)
         {
-            if (P_(i, i) < 1e-6) { P_(i, i) = 1e-6; }
+            if (P_(i, i) < 1e-6)
+            {
+                P_(i, i) = 1e-6;
+            }
         }
         return x_hat_;
     }
 
 private:
-    void x_hat_minusUpdate()
-    {
-        if constexpr (uSize > 0)
-        {
-            x_hat_minus_ = F_ * x_hat_ + B_ * u_;
-        }
-        else
-        {
-            x_hat_minus_ = F_ * x_hat_;
-        }
-    }
+    void x_hat_minusUpdate() { x_hat_minus_ = F_ * x_hat_ + B_ * u_; }
 
-    void P_minusUpdate()
-    {
-        P_minus_ = F_ * P_ * F_.trans() + Q_;
-    }
+    void P_minusUpdate() { P_minus_ = F_ * P_ * F_.trans() + Q_; }
 
-    void setK()
-    {
-        K_ = P_minus_ * H_.trans() * MatrixF32::inv(H_ * P_minus_ * H_.trans() + R_);
-    }
+    void setK() { K_ = P_minus_ * H_.trans() * matrixf::inv(H_ * P_minus_ * H_.trans() + R_); }
 
-    void x_hatUpdate()
-    {
-        x_hat_ = x_hat_minus_ + K_ * (z_ - H_ * x_hat_minus_);
-    }
+    void x_hatUpdate() { x_hat_ = x_hat_minus_ + K_ * (z_ - H_ * x_hat_minus_); }
 
-    void P_Update()
-    {
-        P_ = (MatrixF32::eye<x_hatSize, x_hatSize>() - K_ * H_) * P_minus_;
-    }
+    void P_Update() { P_ = (matrixf::eye<x_hatSize, x_hatSize>() - K_ * H_) * P_minus_; }
 
-    Mat_f32<x_hatSize, 1>         x_hat_;
-    Mat_f32<x_hatSize, 1>         x_hat_minus_;
-    Mat_f32<zSize, 1>             z_;
-    Mat_f32<x_hatSize, x_hatSize> P_;
-    Mat_f32<x_hatSize, x_hatSize> P_minus_;
-    Mat_f32<x_hatSize, x_hatSize> F_;
-    Mat_f32<zSize, x_hatSize>     H_;
-    Mat_f32<x_hatSize, x_hatSize> Q_;
-    Mat_f32<zSize, zSize>         R_;
-    Mat_f32<x_hatSize, zSize>     K_;
-    // Mat_f32<x_hatSize, x_hatSize> S_;
-    // Mat_f32<x_hatSize, x_hatSize> temp_mat_0_;
-    // Mat_f32<x_hatSize, x_hatSize> temp_mat_1_;
-    // Mat_f32<x_hatSize, 1>         tmep_vec_0_;
-    // Mat_f32<x_hatSize, 1>         tmep_vec_1_;
+public:
+    Matrixf<x_hatSize, 1>         x_hat_;
+    Matrixf<x_hatSize, 1>         x_hat_minus_;
+    Matrixf<zSize, 1>             z_;
+    Matrixf<x_hatSize, x_hatSize> P_;
+    Matrixf<x_hatSize, x_hatSize> P_minus_;
+    Matrixf<x_hatSize, x_hatSize> F_;
+    Matrixf<zSize, x_hatSize>     H_;
+    Matrixf<x_hatSize, x_hatSize> Q_;
+    Matrixf<zSize, zSize>         R_;
+    Matrixf<x_hatSize, zSize>     K_;
 
-    Mat_u u_;
-    Mat_B B_;
+    Matrixf<uSize, 1>         u_;
+    Matrixf<x_hatSize, uSize> B_;
 };
 
-#endif //KALMAN_FILTER_H
+#endif // KALMAN_FILTER_H

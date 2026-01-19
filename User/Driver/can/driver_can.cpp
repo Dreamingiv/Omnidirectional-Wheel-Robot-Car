@@ -172,24 +172,23 @@ namespace ega
 	}
 
 	//临时发送用的
-	bool CANInstance::send(uint32_t target_id, const uint8_t* data, uint8_t length, uint16_t block_timeout_us)
+	bool CANInstance::send(uint32_t target_id,  const msg_t &msg, uint16_t block_timeout_us)
 	{
 		// 1. 参数检查
-		if (handle_ == nullptr || data == nullptr || length > MX_MSG_LEN)
-		{
+		if (handle_ == nullptr || msg.data == nullptr || msg.length > MX_MSG_LEN) {
 			return false;
 		}
 
 		// 2. 构造临时发送头（基于默认配置）
 		CAN_TxHeaderTypeDef temp_header = tx_header_;
 		temp_header.StdId               = target_id;
-		temp_header.DLC                 = length;
+		temp_header.DLC                 = msg.length;
 
 		// 3. 复制数据到发送缓冲区
 		uint8_t temp_buff[MX_MSG_LEN];
-		if (length > 0)
+		if (msg.length > 0)
 		{
-			memcpy(temp_buff, data, length);
+			memcpy(temp_buff, msg.data, msg.length);
 		}
 
 		// 4. 检查 FIFO 状态，如果满则等待
@@ -215,6 +214,7 @@ namespace ega
 
 		return true;
 	}
+
 
 	void CANInstance::RxFifoCallback(CAN_HandleTypeDef* hcan, uint32_t fifo)
 	{

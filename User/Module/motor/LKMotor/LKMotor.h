@@ -19,7 +19,7 @@ namespace ega
         struct Config
         {
             Direction direction = Direction::NORMAL;
-            FDCAN_HandleTypeDef* can_handle ;
+            CAN_HandleTypeDef* can_handle ;
             // 翎控电机专有字段（与旧 Motor_old::LKMotorConfig 一致）
             uint8_t motor_id = 0;       // 从1到32，必须提供
             uint8_t encoder_bits = 16;  // 编码器位数：14/15/16...
