@@ -4,7 +4,7 @@
 
 #ifndef QUATERNIONEKF_H
 #define QUATERNIONEKF_H
-
+#include "main.h"
 #include "eulerAngle_and_quaternion.h"
 
 /**
@@ -48,12 +48,12 @@ public:
         x_hat_(2, 0) = init_quaternion.y;
         x_hat_(3, 0) = init_quaternion.z;
 
-        F_ = MatrixF32::eye<6, 6>();
-        P_ = Mat_f32<6, 6>(QuaternionEKF_P);
-        R_ = MatrixF32::eye<3, 3>() * measure_noise_;
+        F_ = matrixf::eye<6, 6>();
+        P_ = Matrixf<6, 6>(QuaternionEKF_P);
+        R_ = matrixf::eye<3, 3>() * measure_noise_;
     }
 
-    void update(Mat_f32<3, 1>& a, Mat_f32<3, 1>& g, const float dt)
+    void update(Matrixf<3, 1>& a, Matrixf<3, 1>& g, const float dt)
     {
         static float half_gx_dt, half_gy_dt, half_gz_dt;
         static float accel_inv_norm;
@@ -67,7 +67,7 @@ public:
         half_gy_dt = 0.5f * g_(1, 0) * dt_;
         half_gz_dt = 0.5f * g_(2, 0) * dt_;
 
-        F_ = MatrixF32::eye<6, 6>();
+        F_ = matrixf::eye<6, 6>();
 
         F_(0, 1) = -half_gx_dt;
         F_(0, 2) = -half_gy_dt;
@@ -108,7 +108,7 @@ public:
             stable_flag_ = false;
         }
         // set Q R,过程噪声和观测噪声矩阵
-        Q_ = MatrixF32::eye<6, 6>() * (process_noise_1_ * dt_);
+        Q_ = matrixf::eye<6, 6>() * (process_noise_1_ * dt_);
         Q_(4, 4) = process_noise_2_ * dt_;
         Q_(5, 5) = process_noise_2_ * dt_;
 
@@ -197,17 +197,17 @@ private:
             double_q1, double_q0, double_q3, double_q2, 0, 0,
             double_q0, -double_q1, -double_q2, double_q3, 0, 0
         };
-        H_ = Mat_f32<3, 6>(H_data);
+        H_ = Matrixf<3, 6>(H_data);
     }
 
     void x_hat_Update()
     {
         static float q0, q1, q2, q3;
-        static Mat_f32<3, 3> temp_mat;
-        static Mat_f32<3, 1> temp_vec;
-        static Mat_f32<6, 1> temp_vec_1;
+        static Matrixf<3, 3> temp_mat;
+        static Matrixf<3, 1> temp_vec;
+        static Matrixf<6, 1> temp_vec_1;
         static float orientation_cos[3]{};
-        static Mat_f32<1, 1> chi_square;
+        static Matrixf<1, 1> chi_square;
         static float adaptive_gain_scale;
 
         q0 = x_hat_minus_(0, 0);
@@ -224,7 +224,7 @@ private:
         orientation_cos[2] = acosf(fabsf(temp_vec(2, 0)));
 
         temp_vec = z_ - temp_vec;
-        temp_mat = MatrixF32::inv(H_ * P_minus_ * H_.trans() + R_);
+        temp_mat = matrixf::inv(H_ * P_minus_ * H_.trans() + R_);
         chi_square = temp_vec.trans() * temp_mat * temp_vec;
         // logger_printf("%f\r\n", chi_square(0, 0));
         // rk is small,filter converged/converging
@@ -320,22 +320,22 @@ private:
     size_t error_count_{0};
     size_t update_count_{0};
 
-    Mat_f32<3, 1> a_{};
-    Mat_f32<3, 1> g_{};
-    Mat_f32<3, 1> g_bias_{};
+    Matrixf<3, 1> a_{};
+    Matrixf<3, 1> g_{};
+    Matrixf<3, 1> g_bias_{};
 
     QuaternionF32 q_;
     EulerAngle euler_angle_;
-    Mat_f32<6, 1> x_hat_;
-    Mat_f32<6, 1> x_hat_minus_;
-    Mat_f32<3, 1> z_;
-    Mat_f32<6, 6> P_;
-    Mat_f32<6, 6> P_minus_;
-    Mat_f32<6, 6> F_;
-    Mat_f32<3, 6> H_;
-    Mat_f32<6, 6> Q_;
-    Mat_f32<3, 3> R_;
-    Mat_f32<6, 3> K_;
+    Matrixf<6, 1> x_hat_;
+    Matrixf<6, 1> x_hat_minus_;
+    Matrixf<3, 1> z_;
+    Matrixf<6, 6> P_;
+    Matrixf<6, 6> P_minus_;
+    Matrixf<6, 6> F_;
+    Matrixf<3, 6> H_;
+    Matrixf<6, 6> Q_;
+    Matrixf<3, 3> R_;
+    Matrixf<6, 3> K_;
 
     constexpr static float QuaternionEKF_P[36] =
     {

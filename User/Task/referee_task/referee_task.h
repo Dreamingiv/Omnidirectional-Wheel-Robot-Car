@@ -1,0 +1,8 @@
+//
+// Created by An on 2025/11/21.
+//
+
+#ifndef REFEREE_TASK_H_
+#define REFEREE_TASK_H_
+
+#endif //EGADAPTER_MC02_USER_TASK_REFEREE_TASK_REFEREE_TASK_H_

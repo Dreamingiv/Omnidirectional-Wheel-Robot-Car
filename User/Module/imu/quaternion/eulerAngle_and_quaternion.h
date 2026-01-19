@@ -74,7 +74,7 @@ public:
     {
     }
 
-    QuaternionF32(Mat_f32<3, 1>& axis, float angle_rad)
+    QuaternionF32(Matrixf<3, 1>& axis, float angle_rad)
     {
         float half = angle_rad * 0.5f;
         float s    = arm_sin_f32(half);
@@ -86,7 +86,7 @@ public:
         normalize();
     }
 
-    explicit QuaternionF32(Mat_f32<4, 1>& m)
+    explicit QuaternionF32(Matrixf<4, 1>& m)
         : w(m(0, 0)), x(m(1, 1)), y(m(2, 2)), z(m(3, 3))
     {
     }
@@ -145,11 +145,11 @@ public:
     QuaternionF32 operator-(const QuaternionF32& q) const { return QuaternionF32(w - q.w, x - q.x, y - q.y, z - q.z); }
 
     // ----------- 与向量操作 -----------
-    Mat_f32<3, 1> rotate(Mat_f32<3, 1>& v) const
+    Matrixf<3, 1> rotate(Matrixf<3, 1>& v) const
     {
         QuaternionF32 qv(0, v(0, 0), v(1, 0), v(2, 0));
         QuaternionF32 qr = (*this) * qv * this->conjugate();
-        Mat_f32<3, 1> res;
+        Matrixf<3, 1> res;
         res(0, 0) = qr.x;
         res(1, 0) = qr.y;
         res(2, 0) = qr.z;
@@ -157,9 +157,9 @@ public:
     }
 
     // ----------- 转换函数 -----------
-    [[nodiscard]] Mat_f32<3, 3> toRotationMatrix() const
+    [[nodiscard]] Matrixf<3, 3> toRotationMatrix() const
     {
-        Mat_f32<3, 3> R;
+        Matrixf<3, 3> R;
 
         float xx = x * x, yy = y * y, zz = z * z;
         float xy = x * y, xz = x * z, yz = y * z;
@@ -179,7 +179,7 @@ public:
         return R;
     }
 
-    static QuaternionF32 fromRotationMatrix(Mat_f32<3, 3>& R)
+    static QuaternionF32 fromRotationMatrix(Matrixf<3, 3>& R)
     {
         QuaternionF32 q;
         float         trace = R(0, 0) + R(1, 1) + R(2, 2);
@@ -278,9 +278,9 @@ public:
         return euler;
     }
 
-    [[nodiscard]] Mat_f32<3, 1> toAccel() const
+    [[nodiscard]] Matrixf<3, 1> toAccel() const
     {
-        Mat_f32<3, 1> accel;
+        Matrixf<3, 1> accel;
 
         accel(0, 0) = 2.0f * (x * z - w * y);
         accel(1, 0) = 2.0f * (w * x + y * z);
@@ -288,9 +288,9 @@ public:
         return accel;
     }
 
-    [[nodiscard]] Mat_f32<3, 4> toJacobian() const
+    [[nodiscard]] Matrixf<3, 4> toJacobian() const
     {
-        Mat_f32<3, 4> jacobian;
+        Matrixf<3, 4> jacobian;
         jacobian(0, 0) = -2 * y;
         jacobian(0, 1) = 2 * z;
         jacobian(0, 2) = -2 * w;
@@ -306,7 +306,7 @@ public:
         return jacobian;
     }
 
-    [[nodiscard]] QuaternionF32 toDq(Mat_f32<3, 1>& omega) const
+    [[nodiscard]] QuaternionF32 toQdot(Matrixf<3, 1>& omega) const
     {
         QuaternionF32 omega_quaternion(
             0,
@@ -317,7 +317,7 @@ public:
     }
 
     // ----------- IMU积分更新（角速度）-----------
-    void integrate(Mat_f32<3, 1>& omega, float dt)
+    void integrate(Matrixf<3, 1>& omega, float dt)
     {
         QuaternionF32 dq(0,
                          0.5f * omega(0, 0) * dt,
