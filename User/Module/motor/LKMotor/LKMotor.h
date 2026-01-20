@@ -58,6 +58,7 @@ namespace ega
         static void enableAll();  // 使能所有电机
         static void disableAll(); // 禁用所有电机
         static void sendCommandAll();
+        static void syncEnableStateAll(); // 同步所有已注册的翎控电机的启用状态
 
         static bool hasDisabledMotor();
         static bool hasOfflineMotor();
@@ -68,12 +69,12 @@ namespace ega
         ~LKMotor() override;
 
 		/* ====================== 5. 公共接口 ====================== */
-	public:
     public:
         // 发送使能失能或清除命令
         void sendLKModeCommand(ModeCommand cmd);
 		void parseData(const uint8_t *data, uint8_t len);
 		void sendCommand() override;
+        void syncEnableState() override;
 
 		void enable() override;
 		void disable() override;

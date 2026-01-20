@@ -47,6 +47,7 @@ namespace ega
             DT7,
             FS_I6X,
         };
+        using RemoteVariant = std::variant<VT13, DT7, FS_I6X>;
 
         /* ====================== 初始化配置 ====================== */
         struct Config
@@ -113,6 +114,16 @@ namespace ega
         static bool hasRemote() { return getInstance().remote_.has_value(); }
         static WorkState getWorkState() { return getInstance().work_state_; }
         static Command getCommand() { return getInstance().command_; }
+        static RemoteVariant& getRemote()
+        {
+            auto& ins = getInstance();
+            return ins.remote_.value();
+        }
+        static const RemoteVariant& getRemoteConst()
+        {
+            const auto& ins = getInstance();
+            return ins.remote_.value();
+        }
 
         /* ====================== 构造 / 析构 ====================== */
     private:
@@ -129,8 +140,6 @@ namespace ega
 
         /* ====================== 受保护接口 ====================== */
     private:
-        using RemoteVariant = std::variant<VT13, DT7, FS_I6X>;
-
         static bool isRemoteOnline(const RemoteVariant& r);
 
         static void updateRemoteLogic(RemoteVariant& r);

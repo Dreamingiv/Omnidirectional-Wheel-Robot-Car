@@ -23,7 +23,7 @@ namespace ega
         // todo 目前强制使用默认外设，之后改成可以用config提供
         // 初始化加速度计外设
         SPIInstance::Config accel_spi_cfg{
-            .handle = &hspi1,
+            .handle = &hspi2,
             .cs_port = CS1_ACCEL_GPIO_Port,
             .cs_pin = CS1_ACCEL_Pin,
             .effect_pin_state_ = GPIO_PIN_RESET,
@@ -39,7 +39,7 @@ namespace ega
 
         // 初始化陀螺仪外设
         SPIInstance::Config gyro_spi_cfg({
-            .handle = &hspi1,
+            .handle = &hspi2,
             .cs_port = CS1_GYRO_GPIO_Port,
             .cs_pin = CS1_GYRO_Pin,
             .effect_pin_state_ = GPIO_PIN_RESET,

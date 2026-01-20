@@ -34,6 +34,12 @@ namespace ega
         static constexpr uint16_t DBUS_FRAME_SIZE = 18;
         /* ====================== 2. 内部类型定义 ====================== */
     public:
+        enum class DebugMode : uint8_t {
+            RC = 0,
+            MOUSE = 1,
+            KEY = 2,
+            ALL = 3
+        };
         enum class RCSwitchState : uint8_t
         {
             UP = 1,
@@ -138,7 +144,11 @@ namespace ega
 
         void start();
         void stop();
-        void debug(); // TODO:
+        void debug(DebugMode mode);
+        // Debug 有四个 mode
+        // RC：右摇杆水平、右摇杆竖直、左摇杆水平、左摇杆竖直、拨轮、左拨杆、右拨杆
+        // MOUSE：鼠标x、鼠标y、鼠标滚轮、左键按下、左键点击、右键按下、右键点击
+        // KEY：(W S A D _ Shift Ctrl Q E _ R F G Z _ X C V B) 按下、点击
 
         /* ====================== 4. API ====================== */
     public:

@@ -42,7 +42,7 @@ namespace ega
 
     VT13::VT13() :
         VT13(UARTInstance::Config{
-            .handle = &huart6,
+            .handle = &huart3,
             .tx_type = UARTInstance::DMA,
             .rx_type = UARTInstance::DMA_IDLE,
             .rx_callback = [this](uint8_t* data, uint16_t size) { this->DBUSCallback(data, size); },

@@ -5,7 +5,6 @@
 #ifndef MODULE_DJIMOTOR_H_
 #define MODULE_DJIMOTOR_H_
 
-#include "cmsis_os2.h"
 #include "driver_can.h"
 #include "led_on_board.h"
 #include "motor.h"
@@ -27,7 +26,7 @@ namespace ega
         {
             Type type;
             Direction direction = Direction::NORMAL;
-            FDCAN_HandleTypeDef* can_handle;
+            CAN_HandleTypeDef* can_handle;
             uint8_t motor_id;            // 从1到8，必须提供
             float reduction_radio = 0.0f;    // 减速比。不提供时默认按电机默认设置来。无减速箱写1:1
         };
@@ -35,7 +34,7 @@ namespace ega
         /* ====================== 1. 编译期常量 & 类型别名 ====================== */
     public:
         static constexpr size_t MAX_MOTORS = 8;  // 每条can线上挂载的最大电机数量，用于静态资源分配
-        static constexpr size_t CAN_DEV_NUM = 3;
+        static constexpr size_t CAN_DEV_NUM = 2;
 
         static constexpr float RPM_TO_DPS = 6.0f;
         static constexpr float RPM_TO_RADPS = RPM_TO_DPS * DEGREE_TO_RAD; // 1.047197551f
@@ -91,9 +90,8 @@ namespace ega
         static CANInstance& getTransmitCANInstance(size_t index)
         {
             static CANInstance instances[CAN_DEV_NUM] = {
-                { CANInstance::Config{ .handle = &hfdcan1 } },
-                { CANInstance::Config{ .handle = &hfdcan2 } },
-                { CANInstance::Config{ .handle = &hfdcan3 } },
+                { CANInstance::Config{ .handle = &hcan1 } },
+                { CANInstance::Config{ .handle = &hcan2 } },
             };
             return instances[index];
         }

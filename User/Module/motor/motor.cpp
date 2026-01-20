@@ -28,6 +28,14 @@ namespace ega
         LKMotor::disableAll();
     }
 
+    void Motor::syncEnableStateAll()
+    {
+        DJIMotor::syncEnableStateAll();
+        DMMotor::syncEnableStateAll();
+        LKMotor::syncEnableStateAll();
+    }
+
+
     bool Motor::hasDisabledMotor()
     {
         return DJIMotor::hasDisabledMotor()

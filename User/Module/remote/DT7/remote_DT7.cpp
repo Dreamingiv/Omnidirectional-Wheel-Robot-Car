@@ -291,4 +291,67 @@ namespace ega
         return in_range(rc_current_.rc.rocker_l_h) && in_range(rc_current_.rc.rocker_l_v) &&
             in_range(rc_current_.rc.rocker_r_h) && in_range(rc_current_.rc.rocker_r_v);
     }
+    void DT7::debug(DT7::DebugMode mode)
+    {
+        auto debugRC = [this]
+        {
+            const auto& r = rc_current_.rc;
+            logger_printf("DT7 RC: %d, %d, %d, %d, %d, %d, %d\r\n", r.rocker_r_h, r.rocker_r_v, r.rocker_l_h,
+                          r.rocker_l_v, r.dial, r.sw_left, r.sw_right);
+        };
+
+        auto debugMouse = [this]
+        {
+            const auto& m = rc_current_.mouse;
+            logger_printf("DT7 Mouse: %d, %d, %d, %d, %d, %d, %d\r\n", m.x, m.y, m.z, m.press_l[0], m.press_l[1],
+                          m.press_r[0], m.press_r[1]);
+        };
+
+        auto debugKey = [this]
+        {
+            const auto& kp = rc_current_.keys[0];
+            const auto& kc = rc_current_.keys[1];
+            char buf1[16 + 3 + 1];
+            char buf2[16 + 3 + 1];
+            int p = 0;
+            for (auto i = 0; i < 16; i++)
+            {
+                buf1[p++] = ((kp.raw >> i) & 1) ? '1' : '0';
+                if ((i+1) % 4 == 0 && i != 15) {
+                    buf1[p++] = '_';
+                }
+            }
+            buf1[p] = '\0';
+            p = 0;
+            for (auto i = 0; i < 16; i++)
+            {
+                buf2[p++] = ((kc.raw >> i) & 1) ? '1' : '0';
+                if ((i+1) % 4 == 0 && i != 15) {
+                    buf2[p++] = '_';
+                }
+            }
+            buf2[p] = '\0';
+            logger_printf("DT7 Key: %s, %s\r\n", buf1, buf2);
+        };
+
+        switch (mode)
+        {
+        case DebugMode::RC:
+            debugRC();
+            break;
+        case DebugMode::MOUSE:
+            debugMouse();
+            break;
+        case DebugMode::KEY:
+            debugKey();
+            break;
+        case DebugMode::ALL:
+            debugRC();
+            debugMouse();
+            debugKey();
+            break;
+        default:
+            break;
+        }
+    }
 } // namespace ega

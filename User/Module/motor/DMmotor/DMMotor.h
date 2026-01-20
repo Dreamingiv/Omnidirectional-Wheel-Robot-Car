@@ -23,7 +23,7 @@ namespace ega
             // 公共字段（按你的要求在派生类重复）
             Direction direction = Direction::NORMAL;
             // CANInstance::Config can_config;
-            FDCAN_HandleTypeDef* can_handle;
+            CAN_HandleTypeDef* can_handle;
             uint32_t can_tx_id;            // 从0x00到0x0F
             uint32_t can_rx_id;             //建议不小于tx_id
 

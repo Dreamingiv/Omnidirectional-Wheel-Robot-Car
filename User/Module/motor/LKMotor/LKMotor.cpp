@@ -209,11 +209,40 @@ namespace ega
         // 翎控上电后默认使能，这里仅启用软件失能，减少对电机硬件的管理
         //sendLKModeCommand(ModeCommand::RESET_MODE);
         // 零力矩指令等价于停转指令，但是可以保证电机仍然有反馈
-        sendLKModeCommand(ModeCommand::TORQUE_ZERO_CMD);
+        // sendLKModeCommand(ModeCommand::TORQUE_ZERO_CMD);
 
         // 赋值基类成员
         is_enabled_ = false;
     }
+
+    void LKMotor::syncEnableState()
+    {
+        if (isEnabled() and not isOnline())
+        {
+            //翎控上电后默认使能，这里仅启用软件失能，减少对电机硬件的管理,因此这里什么都不做
+        }
+        if (not isEnabled())
+        {
+            // 零力矩指令等价于停转指令，但是可以保证电机仍然有反馈
+            sendLKModeCommand(ModeCommand::TORQUE_ZERO_CMD);
+        }
+
+    }
+
+    void LKMotor::syncEnableStateAll()
+    {
+        // 遍历所有已注册电机，将其失能
+        for (size_t i = 0; i < idx_; ++i)
+        {
+            LKMotor* m = motors_[i];
+            if (!m)
+                continue;
+            m->syncEnableState();
+        }
+
+    }
+
+
 
     // void LKMotor::setZeroPosition()
     // {
