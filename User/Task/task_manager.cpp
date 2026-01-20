@@ -161,36 +161,10 @@ void TestTask(void* pv)
     using namespace ega;
     constexpr TickType_t period = pdMS_TO_TICKS(10);
 
-    DJIMotor dji_motor({
-        .type = DJIMotor::Type::GM6020,
-        .direction = Motor::Direction::REVERSE,
-        .can_handle = &hcan2,
-        .motor_id = 1,
-        // .reduction_radio =
-    });
-
-    DMMotor dm_motor({
-    .direction = Motor::Direction::NORMAL,
-    .can_handle = &hcan1,
-    .can_tx_id = 0x02,
-    .can_rx_id = 0x12,
-    .p_max_abs = 12.5,
-    .v_max_abs = 30,
-    .t_max_abs = 10,
-    // .external_reduction_radio = ,
-    // .use_mit =
-    });
-
     TickType_t last_wake_time = xTaskGetTickCount();
     for (;;)
     {
-        // logger_printf("Hello world\r\n");
-        // dji_motor.setEffort(-1);
-        // dm_motor.setEffort(1);
-        auto measure = dm_motor.getMeasure();
-        auto dm_measure = dm_motor.getDMMeasure();
-        logger_printf("%f,%f，%d\r\n",measure.total_angle,measure.torque,dm_measure.state);
-
+        logger_printf("Hello world\r\n");
         LEDOnBoard::loop();
 
         vTaskDelayUntil(&last_wake_time, period);

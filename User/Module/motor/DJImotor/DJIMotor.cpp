@@ -257,7 +257,7 @@ namespace ega
 
     void DJIMotor::enableAll()
     {
-        for (int can = 0; can < 2; can++)
+        for (int can = 0; can < 3; can++)
         {
             for (int i = 0; i < (int)idx_[can]; i++)
             {
@@ -272,7 +272,7 @@ namespace ega
 
     void DJIMotor::disableAll()
     {
-        for (int can = 0; can < 2; can++)
+        for (int can = 0; can < 3; can++)
         {
             for (int i = 0; i < (int)idx_[can]; i++)
             {
@@ -292,14 +292,21 @@ namespace ega
         // 将电机标记为未设置参考值，防止重新上电后继续使用旧的参考值。有效性待验证
         unsetEffort();
         // 清除积分项等操作
-        // measure_ = {};
-        // dji_measure_ = {};
+        measure_ = {};
+        dji_measure_ = {};
     }
 
-    void DJIMotor::sendCommand()
-    {
-        // DJI 电机不支持逐个发送，留空或仅用于兼容接口
-    }
+    // void DJIMotor::sendCommand()
+    // {
+    //     // DJI 电机不支持逐个发送，留空或仅用于兼容接口
+    // }
+    //
+    // //同步所有已注册的大疆电机的启用状态
+    // void DJIMotor::syncEnableState()
+    // {
+    //     //大疆电机不需要手动启用，is_enabled_标志位即可控制其通断
+    // }
+
 
     bool DJIMotor::hasDisabledMotor()
     {

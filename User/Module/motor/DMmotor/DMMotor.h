@@ -23,7 +23,7 @@ namespace ega
             // 公共字段（按你的要求在派生类重复）
             Direction direction = Direction::NORMAL;
             // CANInstance::Config can_config;
-            CAN_HandleTypeDef* can_handle;
+            FDCAN_HandleTypeDef* can_handle;
             uint32_t can_tx_id;            // 从0x00到0x0F
             uint32_t can_rx_id;             //建议不小于tx_id
 
@@ -53,7 +53,7 @@ namespace ega
             MOTOR_MODE = 0xfc,    // 使能,会响应指令
             RESET_MODE = 0xfd,    // 停止
             ZERO_POSITION = 0xfe, // 将当前的位置设置为编码器零位
-            CLEAR_ERROR = 0xfb    // 清除电机过热错误
+            CLEAR_ERROR = 0xfb,   // 清除电机过热错误
         };
 
         struct DMMeasure
@@ -71,7 +71,7 @@ namespace ega
         };
 
         // CAN 帧结构（保持旧版）
-        struct msg_t {
+        struct mailbox_t {
             uint16_t position_des;
             uint16_t velocity_des;
             uint16_t torque_des;
@@ -94,6 +94,8 @@ namespace ega
         static void enableAll();  // 使能所有电机，建议上电后等待几秒再启用
         static void disableAll(); // 禁用所有电机
         static void sendCommandAll();
+        static void syncEnableStateAll();
+
 
         static bool hasDisabledMotor();
         static bool hasOfflineMotor();
@@ -106,6 +108,8 @@ namespace ega
         /* ====================== 5. 公共接口 ====================== */
     public:
         void sendCommand() override;
+
+        void syncEnableState() override;
 
         void enable() override;
         void disable() override;

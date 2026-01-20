@@ -109,18 +109,37 @@ namespace ega
     void DMMotor::sendCommand()
     {
         if (!isEnabled())
+        {
+            //如果电机没有设置为使能，什么都不做
             return;
+        }
         if (!isEffortSet())
         {
-            /* 达妙电机是发一帧收一帧形式
-               当effort未设置时，发送一帧使能命令，维持电机can反馈，防止触发掉线
-               如果effort已经设置，则直接发送电机effort命令，不再发使能 */
-            sendDMModeCommand(ModeCommand::MOTOR_MODE);
+            //如果电机设置为了使能，但是effort未设置，发送一帧全零命令，维持电机can反馈，防止触发掉线
+            mailbox_t zero_cmd{};
+            zero_cmd.position_des = utils::float_to_u16(0, -p_max_abs_, p_max_abs_, 16);
+            zero_cmd.velocity_des = utils::float_to_u16(0, -v_max_abs_, v_max_abs_, 12);
+            zero_cmd.torque_des = utils::float_to_u16(0, -t_max_abs_, t_max_abs_, 12);
+            zero_cmd.kp = utils::float_to_u16(0, KP_MIN, KP_MAX, 12);
+            zero_cmd.kd = utils::float_to_u16(0, KD_MIN, KD_MAX, 12);
+
+            CANInstance::msg_t msg{};
+            msg.length = 8;
+            msg.data[0] = static_cast<uint8_t>(zero_cmd.position_des >> 8);
+            msg.data[1] = static_cast<uint8_t>(zero_cmd.position_des);
+            msg.data[2] = static_cast<uint8_t>(zero_cmd.velocity_des >> 4);
+            msg.data[3] = static_cast<uint8_t>(((zero_cmd.velocity_des & 0xF) << 4) | (zero_cmd.kp >> 8));
+            msg.data[4] = static_cast<uint8_t>(zero_cmd.kp);
+            msg.data[5] = static_cast<uint8_t>(zero_cmd.kd >> 4);
+            msg.data[6] = static_cast<uint8_t>(((zero_cmd.kd & 0xF) << 4) | (zero_cmd.torque_des >> 8));
+            msg.data[7] = static_cast<uint8_t>(zero_cmd.torque_des);
+
+            can_->send(msg);
             return;
         }
 
 
-        msg_t mailbox{};
+        mailbox_t mailbox{};
 
         if (use_mit_)
         {
@@ -170,11 +189,6 @@ namespace ega
                 continue;
             if (!m->isEnabled())
                 continue;
-            //		if (!m->isOnline())
-            //{//如果电机存在，且使能，但却掉线，尝试发送一帧命令唤醒它。更新：这一步在enableAll中应当已经完成，故注释掉
-            //			m->sendModeCommand(ModeCommand::MOTOR_MODE);
-            //			continue;
-            //		}
             m->sendCommand();
         }
     }
@@ -193,8 +207,6 @@ namespace ega
             DMMotor* m = motors_[i];
             if (!m)
                 continue; // 跳过未注册的电机
-            if (m->isEnabled() and m->isOnline())
-                continue; // 跳过已经使能且确实被激活使能的电机，注意，这里的在线指的是电机有反馈帧，且state返回值为1
             m->enable();
         }
     }
@@ -213,13 +225,18 @@ namespace ega
 
     void DMMotor::enable()
     {
-        // 与基类不同的是，主动发出一帧命令使能电机
-        // 使用can驱动中的msg类型
-        sendDMModeCommand(ModeCommand::CLEAR_ERROR); // 设置了can timeout的需要先清除错误
-        // 等待200us，确保电机状态更新
-        // 因为理论上enable只在遥控器初次上电时触发一次，阻塞延迟200us暂时认为没影响。当然有更好的办法是最好的
-        DWTInstance::delay(0.0002);
-        sendDMModeCommand(ModeCommand::MOTOR_MODE);
+
+        // // 与基类不同的是，主动发出一帧命令使能电机
+        // // 使用can驱动中的msg类型
+        // sendDMModeCommand(ModeCommand::CLEAR_ERROR); // 设置了can timeout的需要先清除错误
+        // // 等待200us，确保电机状态更新
+        // // 因为理论上enable只在遥控器初次上电时触发一次，阻塞延迟200us暂时认为没影响。当然有更好的办法是最好的
+        // DWTInstance::delay(0.0002);
+        // sendDMModeCommand(ModeCommand::MOTOR_MODE);
+
+        // 更新，为了实现更精细的电机使能控制，enable本身不直接尝试使能电机，
+        // 而是将使能状态设置为true，然后通过syncEnableState()同步到电机
+        // 这样可以保证在电机全局保护模式生效的前提下，用户可以手动控制电机使能状态
 
         // 赋值基类成员
         is_enabled_ = true;
@@ -227,12 +244,50 @@ namespace ega
 
     void DMMotor::disable()
     {
-        // 与基类不同的是，主动发出一帧命令失能电机
-        sendDMModeCommand(ModeCommand::RESET_MODE);
+        // // 与基类不同的是，主动发出一帧命令失能电机
+        // sendDMModeCommand(ModeCommand::RESET_MODE);
+
+        // 更新，为了实现更精细的电机使能控制，enable本身不直接尝试使能电机，
+        // 而是将使能状态设置为true，然后通过syncEnableState()同步到电机
+        // 这样可以保证在电机全局保护模式生效的前提下，用户可以手动控制电机使能状态
 
         // 赋值基类成员
         is_enabled_ = false;
     }
+
+    void DMMotor::syncEnableState()
+    {
+        //同步使能状态
+        //如果电机被设置了使能，且当前未在线，尝试发送使能命令
+        if (isEnabled() and not isOnline())
+        {
+            sendDMModeCommand(ModeCommand::CLEAR_ERROR); // 设置了can timeout的需要先清除错误
+            // 等待200us，确保电机状态更新
+            // 因为理论上enable只在遥控器初次上电时触发一次，阻塞延迟200us暂时认为没影响。当然有更好的办法是最好的
+            DWTInstance::delay(0.0002);
+            sendDMModeCommand(ModeCommand::MOTOR_MODE);
+        }
+        //如果电机被设置为失能状态，无论当前是否在线，都发送失能命令
+        if (not isEnabled())
+        {
+            sendDMModeCommand(ModeCommand::RESET_MODE);
+        }
+    }
+
+    void DMMotor::syncEnableStateAll()
+    {
+        // 遍历所有已注册电机，根据is_enabled标志位同步使能状态
+        for (size_t i = 0; i < idx_; ++i)
+        {
+            DMMotor* m = motors_[i];
+            if (!m)
+                continue;
+            m->syncEnableState();
+        }
+
+    }
+
+
 
     bool DMMotor::hasDisabledMotor()
     {

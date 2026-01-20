@@ -28,15 +28,15 @@ namespace ega
             REVERSE = -1
         };
 
-        // 同一单位：度，度每秒，牛米
+        // 同一单位：弧度，弧度每秒，牛米
         struct Measure
         {
-            float angle_rotor = 0.0f; // 【转子】位置。根据电机不同，可能不止360度
-            float total_angle_rotor = 0.0f; // 【转子】上电后经过的完整角度
-            float total_angle = 0.0f; // 【输出轴】上电后经过的完整角度
+            float angle_rotor = 0.0f; // 【转子】位置。根据电机不同，可能不止2pi
+            float total_angle_rotor = 0.0f; // 【转子】上电后经过的完整弧度
+            float total_angle = 0.0f; // 【输出轴】上电后经过的完整弧度
 
-            float speed_rotor = 0.0f; // 【转子】速度 度每秒
-            float speed = 0.0f; // 【输出轴】速度 度每秒
+            float speed_rotor = 0.0f; // 【转子】速度 弧度每秒
+            float speed = 0.0f; // 【输出轴】速度 弧度每秒
 
             float torque = 0.0f; // 等效力矩，大疆电机使用扭矩常数和减速比线性映射出等效力矩。翎控电机暂时不提供力矩
             float current = 0.0f; // 电流 A。达妙电机暂时不提供电流值。
@@ -54,6 +54,8 @@ namespace ega
         static bool hasDisabledMotor();
 
         static bool hasOfflineMotor();
+
+        static void syncEnableStateAll();
 
         /* ====================== 3. 构造 / 析构 ====================== */
     public:
@@ -74,6 +76,9 @@ namespace ega
             is_effort_set_ = false;
         }
 
+        // 同步电机启用状态（派生类实现）
+        virtual void syncEnableState() = 0;
+
         // 发送控制命令（派生类实现）
         virtual void sendCommand() = 0;
 
@@ -84,6 +89,7 @@ namespace ega
         };
 
         // 启用/禁用电机（通用）
+        // 注意，这里仅仅设置enable标志位，然后通过syncEnableState()同步到电机
         virtual void enable() { is_enabled_ = true; }
         virtual void disable() { is_enabled_ = false; }
 

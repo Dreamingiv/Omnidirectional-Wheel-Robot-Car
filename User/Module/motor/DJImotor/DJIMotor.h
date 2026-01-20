@@ -5,6 +5,7 @@
 #ifndef MODULE_DJIMOTOR_H_
 #define MODULE_DJIMOTOR_H_
 
+#include "cmsis_os2.h"
 #include "driver_can.h"
 #include "led_on_board.h"
 #include "motor.h"
@@ -26,7 +27,7 @@ namespace ega
         {
             Type type;
             Direction direction = Direction::NORMAL;
-            CAN_HandleTypeDef* can_handle;
+            FDCAN_HandleTypeDef* can_handle;
             uint8_t motor_id;            // 从1到8，必须提供
             float reduction_radio = 0.0f;    // 减速比。不提供时默认按电机默认设置来。无减速箱写1:1
         };
@@ -34,7 +35,7 @@ namespace ega
         /* ====================== 1. 编译期常量 & 类型别名 ====================== */
     public:
         static constexpr size_t MAX_MOTORS = 8;  // 每条can线上挂载的最大电机数量，用于静态资源分配
-        static constexpr size_t CAN_DEV_NUM = 2;
+        static constexpr size_t CAN_DEV_NUM = 3;
 
         static constexpr float RPM_TO_DPS = 6.0f;
         static constexpr float RPM_TO_RADPS = RPM_TO_DPS * DEGREE_TO_RAD; // 1.047197551f
@@ -68,7 +69,7 @@ namespace ega
         {
             uint16_t encoder = 0; // 本次读取的编码器值 【0~8191】 3508上电时编码器数值很随机，不知为啥
             uint16_t last_encoder = 0; // 上次读取的编码器值
-            int16_t current_bit = 0; // 实际转矩电流
+            int16_t current_bit = 0; // 实际转矩电流，bit值
             uint8_t temperature = 0; // 电机温度         # Celsius
         };
 
@@ -81,6 +82,8 @@ namespace ega
 
         static void sendCommandAll();
 
+        static void syncEnableStateAll(){}; // 同步所有已注册的大疆电机的启用状态,大疆电机不需要手动启用，is_enabled_标志位即可控制其通断
+
         static bool hasDisabledMotor();
         static bool hasOfflineMotor();
 
@@ -88,8 +91,9 @@ namespace ega
         static CANInstance& getTransmitCANInstance(size_t index)
         {
             static CANInstance instances[CAN_DEV_NUM] = {
-                { CANInstance::Config{ .handle = &hcan1 } },
-                { CANInstance::Config{ .handle = &hcan2 } },
+                { CANInstance::Config{ .handle = &hfdcan1 } },
+                { CANInstance::Config{ .handle = &hfdcan2 } },
+                { CANInstance::Config{ .handle = &hfdcan3 } },
             };
             return instances[index];
         }
@@ -102,7 +106,9 @@ namespace ega
         /* ====================== 5. 公共接口 ====================== */
     public:
         // DJI 电机无法逐个 sendCommand（保持接口，但可在 cpp 内为空/不使用）
-        void sendCommand() override;
+        void sendCommand() override{};// DJI 电机不支持逐个发送，留空或仅用于兼容接口
+
+        void syncEnableState() override{};//大疆电机不需要手动启用，is_enabled_标志位即可控制其通断
 
         void parseData(const uint8_t* data, uint8_t len);
 
