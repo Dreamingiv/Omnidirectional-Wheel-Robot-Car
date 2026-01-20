@@ -162,9 +162,20 @@ void TestTask(void* pv)
     constexpr TickType_t period = pdMS_TO_TICKS(10);
 
     TickType_t last_wake_time = xTaskGetTickCount();
+
+    // DJIMotor dji_motor=DJIMotor({
+    // .type = DJIMotor::Type::GM6020,
+    // .can_handle = &hcan1,
+    // .motor_id = 5});
+    //
+    // Motor::Measure measure = Motor::Measure();
+
     for (;;)
     {
-        logger_printf("Hello world\r\n");
+        // measure=dji_motor.getMeasure();
+        // logger_printf("%f %f\r\n",measure.total_angle,measure.speed);
+        // dji_motor.setEffort(1);
+        logger_printf("hello world\r\n");
         LEDOnBoard::loop();
 
         vTaskDelayUntil(&last_wake_time, period);
