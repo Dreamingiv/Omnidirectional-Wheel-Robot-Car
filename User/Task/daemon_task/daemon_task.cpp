@@ -8,14 +8,14 @@
 [[noreturn]] void DaemonTask(void* pv)
 {
     using namespace ega;
-    constexpr TickType_t period = pdMS_TO_TICKS(Daemon::PERIOD_MS);
+    constexpr TickType_t period = pdMS_TO_TICKS(10);
 
-
-    TickType_t last_wake_time = xTaskGetTickCount();
     for (;;)
     {
+        TickType_t current_time = xTaskGetTickCount();
+
         Daemon::updateAll(); //所有已注册的守护进程tick一次
 
-        vTaskDelayUntil(&last_wake_time, period);
+        vTaskDelayUntil(&current_time, period / portTICK_RATE_MS);
     }
 }

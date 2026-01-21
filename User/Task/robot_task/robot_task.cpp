@@ -5,22 +5,22 @@
 #include "cmsis_os.h"
 #include "logger.h"
 #include "robot_manager.h"
-#include "user_configs.h"
 
 [[noreturn]] void RobotTask(void* pv)
 {
     using namespace ega;
     constexpr TickType_t period = pdMS_TO_TICKS(5);//周期200hz
-
-
     //初始化机器人管理器
-    RobotManager::init(configs::robot_manager_config);
+    RobotManager::init({
+        .remote_type = RobotManager::RemoteType::DT7
+    });
 
-    TickType_t last_wake_time = xTaskGetTickCount();
     for (;;)
     {
+        TickType_t current_time = xTaskGetTickCount();
+
         RobotManager::update();
 
-        vTaskDelayUntil(&last_wake_time, period);
+        vTaskDelayUntil(&current_time, period / portTICK_RATE_MS);
     }
 }
