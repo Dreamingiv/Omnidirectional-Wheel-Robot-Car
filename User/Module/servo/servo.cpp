@@ -17,9 +17,7 @@ namespace ega
         ++servo_count_;
 
         // 2. 配置底层 PWM 驱动
-        PWMInstance::Config pwm_cfg;// = config.pwm_config;
-        pwm_cfg.handle = config.pwm_handle;
-        pwm_cfg.channel = config.pwm_channel;
+        PWMInstance::Config pwm_cfg = config.pwm_config;
         pwm_cfg.type = PWMInstance::Type::DIRECT; // 舵机控制通常使用直接寄存器操作
         pwm_cfg.auto_start = false; // 先不开启，等初始化计算完初始角度再开
         pwm_cfg.callback = nullptr;

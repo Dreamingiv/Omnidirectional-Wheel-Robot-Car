@@ -28,6 +28,7 @@ namespace ega
             REVERSE = -1
         };
 
+        // 同一单位：度，度每秒，牛米
         struct Measure
         {
             float angle_rotor = 0.0f; // 【转子】位置。根据电机不同，可能不止2pi

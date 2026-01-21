@@ -310,7 +310,7 @@ namespace ega
 
     bool DJIMotor::hasDisabledMotor()
     {
-        for (int can = 0; can < 2; can++)
+        for (int can = 0; can < 3; can++)
         {
             for (int i = 0; i < (int)idx_[can]; i++)
             {
@@ -324,7 +324,7 @@ namespace ega
 
     bool DJIMotor::hasOfflineMotor()
     {
-        for (int can = 0; can < 2; can++)
+        for (int can = 0; can < 3; can++)
         {
             for (int i = 0; i < (int)idx_[can]; i++)
             {

@@ -92,6 +92,7 @@ namespace ega
             static CANInstance instances[CAN_DEV_NUM] = {
                 { CANInstance::Config{ .handle = &hcan1 } },
                 { CANInstance::Config{ .handle = &hcan2 } },
+
             };
             return instances[index];
         }

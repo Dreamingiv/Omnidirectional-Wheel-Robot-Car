@@ -172,7 +172,7 @@ namespace ega
 	}
 
 	//临时发送用的
-	bool CANInstance::send(uint32_t target_id, const msg_t &msg ,uint16_t block_timeout_us)
+	bool CANInstance::send(uint32_t target_id, const msg_t& msg,uint16_t block_timeout_us)
 	{
 		// 1. 参数检查
 		if (handle_ == nullptr || msg.data == nullptr || msg.length > MX_MSG_LEN)

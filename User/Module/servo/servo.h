@@ -32,9 +32,9 @@ namespace ega
         struct Config
         {
             // 硬件关联
-            TIM_HandleTypeDef* pwm_handle = nullptr;
-            uint32_t           pwm_channel = 0;
-            // PWMInstance::Config pwm_config = {};
+            //        TIM_HandleTypeDef* pwm_handle = nullptr;
+            //        uint32_t           pwm_channel = 0;
+            PWMInstance::Config pwm_config = {};
 
             // 舵机物理参数 (查阅 Datasheet)
             float max_angle = 180.0f; ///< 最大旋转角度 (常见 180.0 或 270.0)
