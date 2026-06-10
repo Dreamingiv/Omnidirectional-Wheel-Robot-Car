@@ -54,7 +54,7 @@ namespace ega
         {
             //后续如果配置不多，可以考虑把这两项作为模板参数，利用if constexpr实现编译期裁剪
             BoardType board_type = BoardType::OneBoard;
-            RemoteType remote_type = RemoteType::VT13;
+            RemoteType remote_type = RemoteType::FS_I6X;
         };
 
         /* ====================== 控制指令相关 ====================== */
@@ -71,8 +71,15 @@ namespace ega
             };
             struct ChassisCommand
             {
-
+                float vx = 0.0f;
+                float vy = 0.0f;
+                float wz = 0.0f;
+                bool enable = false;
             };
+
+            GimbalCommand gimbal{};
+            ShootCommand shoot{};
+            ChassisCommand chassis{};
             //其它指令另外再添加
         };
 

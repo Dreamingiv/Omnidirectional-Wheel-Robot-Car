@@ -8,6 +8,36 @@
 
 namespace ega
 {
+    namespace
+    {
+        constexpr int16_t DT7_ROCKER_DEADBAND = 20;
+
+        float limitFloat(float value, float min, float max)
+        {
+            if (value < min)
+            {
+                return min;
+            }
+            if (value > max)
+            {
+                return max;
+            }
+            return value;
+        }
+
+        float normalizeDT7Rocker(int16_t value)
+        {
+            if (value > -DT7_ROCKER_DEADBAND && value < DT7_ROCKER_DEADBAND)
+            {
+                return 0.0f;
+            }
+
+            constexpr float max_abs =
+                static_cast<float>(DT7::RC_CH_VALUE_MAX - DT7::RC_CH_VALUE_OFFSET);
+            return limitFloat(static_cast<float>(value) / max_abs, -1.0f, 1.0f);
+        }
+    }
+
     bool RobotManager::init(const Config& config)
     {
         auto& ins = getInstance();
@@ -49,6 +79,7 @@ namespace ega
 
         if (!ins.inited_ || !ins.remote_)
         {
+            ins.command_ = {};
             ins.work_state_ = WorkState::Protect;
             return;
         }
@@ -66,6 +97,7 @@ namespace ega
         }
         else
         {
+            ins.command_ = {};
             ins.work_state_ = WorkState::Protect;
         }
 
@@ -116,8 +148,25 @@ namespace ega
     }
      void RobotManager::updateRemote_DT7(DT7& dt7)
     {
-        // TODO: DT7 特有的映射逻辑
-        (void)dt7;
+        auto& chassis_cmd = getInstance().command_.chassis;
+        chassis_cmd = {};
+
+        if (!dt7.isFrameValid())
+        {
+            return;
+        }
+
+        chassis_cmd.enable =
+            dt7.getRightSwitch() == DT7::RCSwitchState::MIDDLE &&
+            dt7.getLeftSwitch() == DT7::RCSwitchState::MIDDLE;
+        if (!chassis_cmd.enable)
+        {
+            return;
+        }
+
+        chassis_cmd.vx = normalizeDT7Rocker(dt7.getRockerValue(DT7::RCRockerIndex::RIGHT_VERTICAL));
+        chassis_cmd.vy = normalizeDT7Rocker(dt7.getRockerValue(DT7::RCRockerIndex::RIGHT_HORIZONTAL));
+        chassis_cmd.wz = normalizeDT7Rocker(dt7.getRockerValue(DT7::RCRockerIndex::LEFT_HORIZONTAL));
     }
     void RobotManager::updateRemote_FS_I6X(FS_I6X& fs_i6x)
     {

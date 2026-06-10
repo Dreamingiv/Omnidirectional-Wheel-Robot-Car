@@ -22,7 +22,9 @@
 #include "logger.h"
 #include "motor_task.h"
 #include "PID.h"
+#include "robot_manager.h"
 #include "robot_task.h"
+#include "servo.h"
 
 using namespace ega;
 
@@ -175,16 +177,16 @@ void DefaultTask(void* pv)
  * @note   当前作为测试任务
  */
 
+using namespace ega;
 void TestTask(void* pv)
 {
-	// ega::DJIMotor dji_motor=ega::DJIMotor({
-	// 	.type =ega::DJIMotor::Type::GM6020,
-	// 	.can_handle = &hcan1,
-	// 	.motor_id = 5
-	//  });
-	//
-	// Motor::Measure measure=Motor::Measure();
-	//
+    // DJIMotor dji_motor({
+    //     .type = ega::DJIMotor::Type::GM6020,
+    //     .can_handle = &hcan1,
+    //     .motor_id = 5,
+    // });
+    // DJIMotor::enableAll();
+
 	// PID pid_controlller=PID({
 	// 	.kp=5,
 	// 	.ki=0,
@@ -192,30 +194,18 @@ void TestTask(void* pv)
 	// 	.limit_output = 10
 	// });
 
-	DMMotor dm_motor=DMMotor({
-	.can_handle = &hcan1,
-		.can_tx_id = 0x00,
-		.can_rx_id = 0x01,
-		.p_max_abs = 3,
-		.v_max_abs = 3,
-		.t_max_abs = 0.1
-	});
+	// DMMotor dm_motor=DMMotor({
+	// .can_handle = &hcan1,
+	// 	.can_tx_id = 0x00,
+	// 	.can_rx_id = 0x01,
+	// 	.p_max_abs = 3,
+	// 	.v_max_abs = 3,
+	// 	.t_max_abs = 0.1
+	// });
 
 	for (;;)
 	{
-
-		// static size_t cnt = 0;
-		// logger_printf("%d\r\n", cnt++);
-
-		// static float output=0;
-		// measure=dji_motor.getMeasure();
-		// output=pid_controlller.calculate(20,measure.total_angle);
-		// dji_motor.setEffort(output);
-		// logger_printf("%f\r\n",measure.total_angle);
-
-
-
 		ega::LEDOnBoard::loop();
-		vTaskDelay(5);
+		vTaskDelay(pdMS_TO_TICKS(5));
 	}
 }

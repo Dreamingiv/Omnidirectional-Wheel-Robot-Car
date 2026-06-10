@@ -65,6 +65,11 @@ namespace ega
 
         /* ====================== 4. 构造 / 析构 ====================== */
     public:
+        static bool getPrimaryEulerAngle(EulerAngle& euler);
+        static bool getPrimaryYaw(float& yaw);
+        static bool getPrimaryGyroZ(float& gyro_z);
+        static bool getPrimaryAccel(Matrixf<3, 1>& accel);
+
         IMU()
         {
             // 加入实例列表

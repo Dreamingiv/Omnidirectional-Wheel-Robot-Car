@@ -3,6 +3,7 @@
 #include "DJIMotor.h"
 #include "DMMotor.h"
 #include "LKMotor.h"
+#include "XYTmotor/XYTMotor.h"
 
 namespace ega
 {
@@ -12,6 +13,7 @@ namespace ega
         DJIMotor::controlAll();
         DMMotor::controlAll();
         LKMotor::controlAll();
+        XYTMotor::controlAll();
     }
 
     void Motor::enableAll()
@@ -19,6 +21,7 @@ namespace ega
         DJIMotor::enableAll();
         DMMotor::enableAll();
         LKMotor::enableAll();
+        XYTMotor::enableAll();
     }
 
     void Motor::disableAll()
@@ -26,6 +29,7 @@ namespace ega
         DJIMotor::disableAll();
         DMMotor::disableAll();
         LKMotor::disableAll();
+        XYTMotor::disableAll();
     }
 
     void Motor::syncEnableStateAll()
@@ -33,6 +37,7 @@ namespace ega
         DJIMotor::syncEnableStateAll();
         DMMotor::syncEnableStateAll();
         LKMotor::syncEnableStateAll();
+        XYTMotor::syncEnableStateAll();
     }
 
 
@@ -40,13 +45,15 @@ namespace ega
     {
         return DJIMotor::hasDisabledMotor()
             || DMMotor::hasDisabledMotor()
-            || LKMotor::hasDisabledMotor();
+            || LKMotor::hasDisabledMotor()
+            || XYTMotor::hasDisabledMotor();
     }
 
     bool Motor::hasOfflineMotor()
     {
         return DJIMotor::hasOfflineMotor()
             || DMMotor::hasOfflineMotor()
-            || LKMotor::hasOfflineMotor();
+            || LKMotor::hasOfflineMotor()
+            || XYTMotor::hasOfflineMotor();
     }
 } // namespace ega
