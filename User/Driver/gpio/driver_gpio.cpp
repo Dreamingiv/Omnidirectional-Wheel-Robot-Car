@@ -3,6 +3,39 @@
 //
 #include "driver_gpio.h"
 
+namespace
+{
+    GPIO_TypeDef* getExtiPort(uint16_t pin)
+    {
+        uint32_t line = 0;
+        while (line < 16U && pin != static_cast<uint16_t>(1UL << line))
+        {
+            ++line;
+        }
+        if (line >= 16U)
+        {
+            return nullptr;
+        }
+
+        const uint32_t shift = (line & 0x3U) * 4U;
+        const uint32_t port_code =
+            (SYSCFG->EXTICR[line >> 2U] >> shift) & 0xFU;
+        switch (port_code)
+        {
+        case 0U: return GPIOA;
+        case 1U: return GPIOB;
+        case 2U: return GPIOC;
+        case 3U: return GPIOD;
+        case 4U: return GPIOE;
+        case 5U: return GPIOF;
+        case 6U: return GPIOG;
+        case 7U: return GPIOH;
+        case 8U: return GPIOI;
+        default: return nullptr;
+        }
+    }
+}
+
 namespace ega
 {
     /// 静态成员初始化
@@ -47,11 +80,15 @@ extern "C" {
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
     using namespace ega;
+    GPIO_TypeDef* const exti_port = getExtiPort(GPIO_Pin);
     // 如有必要,可以根据default_state_和HAL_GPIO_ReadPin来判断是上升沿还是下降沿/rise&fall等
     // 本来用的就比较少，暂时不在GPIO驱动层级内实现。板载按钮在自己的回调里面实现
     for (auto ins : GPIOInstance::instance_list_)
     {
-        if (ins->pin_ == GPIO_Pin && ins->exti_callback_ != nullptr)
+        if (ins != nullptr &&
+            ins->port_ == exti_port &&
+            ins->pin_ == GPIO_Pin &&
+            ins->exti_callback_ != nullptr)
         {
             ins->exti_callback_();
             return;

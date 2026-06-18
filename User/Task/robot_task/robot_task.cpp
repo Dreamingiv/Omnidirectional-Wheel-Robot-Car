@@ -10,7 +10,7 @@
 #include "PID.h"
 #include "robot_manager.h"
 
-#define CHASSIS_TEST_MODE
+// #define CHASSIS_TEST_MODE
 
 namespace
 {
@@ -20,6 +20,11 @@ namespace
     constexpr float YAW_OUTPUT_MAX = 3.0f;
     constexpr float YAW_COMMAND_DEADBAND = 0.02f;
     constexpr float YAW_GYRO_DAMPING = 0.18f;
+    constexpr float YAW_STILL_COMMAND_DEADBAND = 0.04f;
+    constexpr float YAW_STILL_ENTER_RPM = 10.0f;
+    constexpr float YAW_STILL_EXIT_RPM = 20.0f;
+    constexpr float YAW_STILL_GYRO_DEADBAND = 0.12f;
+    constexpr TickType_t YAW_STILL_HOLD_TICKS = pdMS_TO_TICKS(500);
     constexpr float LATERAL_ACCEL_DT = 0.005f;
     constexpr float LATERAL_ACCEL_DEADBAND = 0.08f;
     constexpr float LATERAL_VELOCITY_LEAK = 0.98f;
@@ -78,11 +83,24 @@ namespace
         return std::get_if<ega::DT7>(&remote);
     }
 
+    float toFullScaleAxis(float value)
+    {
+        if (value > 0.0f)
+        {
+            return 1.0f;
+        }
+        if (value < 0.0f)
+        {
+            return -1.0f;
+        }
+        return 0.0f;
+    }
+
     ega::Chassis::Command toChassisCommand(const ega::MiniPC::Command& command)
     {
         return {
-            .vx = command.vx,
-            .vy = command.vy,
+            .vx = toFullScaleAxis(command.vx),
+            .vy = toFullScaleAxis(command.vy),
             .wz = command.wz,
         };
     }
@@ -93,9 +111,9 @@ namespace
         bool reset_yaw_target = false)
     {
         static ega::PID yaw_pid({
-            .kp = 0.3f,
+            .kp = 1.0f,
             .ki = 0.0f,
-            .kd = 0.0f,
+            .kd = 0.5f,
             .limit_output = YAW_OUTPUT_MAX,
             .limit_integral = 0.0f,
             .limit_error = 1.0f,
@@ -105,6 +123,9 @@ namespace
         });
         static bool target_yaw_valid = false;
         static float target_yaw = 0.0f;
+        static bool still_candidate_active = false;
+        static bool still_mode = false;
+        static TickType_t still_candidate_start = 0;
 
         ega::Chassis::Command output = command;
 
@@ -115,6 +136,8 @@ namespace
             !ega::IMU::getPrimaryGyroZ(gyro_z))
         {
             target_yaw_valid = false;
+            still_candidate_active = false;
+            still_mode = false;
             yaw_pid.clear();
             return output;
         }
@@ -123,7 +146,57 @@ namespace
         {
             target_yaw = current_yaw;
             target_yaw_valid = true;
+            still_candidate_active = false;
+            still_mode = false;
             yaw_pid.clear();
+        }
+
+        const bool command_still =
+            absFloat(command.vx) < YAW_STILL_COMMAND_DEADBAND &&
+            absFloat(command.vy) < YAW_STILL_COMMAND_DEADBAND &&
+            absFloat(command.wz) < YAW_STILL_COMMAND_DEADBAND;
+        const bool gyro_still =
+            absFloat(gyro_z) < YAW_STILL_GYRO_DEADBAND;
+
+        if (still_mode)
+        {
+            const bool feedback_moving =
+                ega::Chassis::isAnyFeedbackRpmAbove(YAW_STILL_EXIT_RPM);
+            if (command_still && gyro_still && !feedback_moving)
+            {
+                target_yaw = current_yaw;
+                yaw_pid.clear();
+                output.wz = 0.0f;
+                return output;
+            }
+
+            still_mode = false;
+            target_yaw = current_yaw;
+            yaw_pid.clear();
+        }
+
+        const bool feedback_still =
+            ega::Chassis::areFeedbackRpmsBelow(YAW_STILL_ENTER_RPM);
+        if (command_still && gyro_still && feedback_still)
+        {
+            const TickType_t now = xTaskGetTickCount();
+            if (!still_candidate_active)
+            {
+                still_candidate_active = true;
+                still_candidate_start = now;
+            }
+            else if ((now - still_candidate_start) >= YAW_STILL_HOLD_TICKS)
+            {
+                still_mode = true;
+                target_yaw = current_yaw;
+                yaw_pid.clear();
+                output.wz = 0.0f;
+                return output;
+            }
+        }
+        else
+        {
+            still_candidate_active = false;
         }
 
         if (absFloat(command.wz) > YAW_COMMAND_DEADBAND)
@@ -264,27 +337,27 @@ namespace
         const TickType_t test_step = test_phase / test_stage_ticks;
         const TickType_t test_step_time = test_phase % test_stage_ticks;
 
-        if (test_step_time < CHASSIS_TEST_MOVE_TICKS)
-        {
-            switch (test_step)
-            {
-            case 0:
-                test_command.vx = CHASSIS_TEST_SPEED;
-                break;
-            case 1:
-                test_command.vx = -CHASSIS_TEST_SPEED;
-                break;
-            case 2:
-                test_command.vy = CHASSIS_TEST_SPEED;
-                break;
-            default:
-                test_command.vy = -CHASSIS_TEST_SPEED;
-                break;
-            }
-        }
-        // test_command.vx = 0.80f;
-        // test_command.vy = 0.0f;
-        // test_command.wz = 0.0f;
+        // if (test_step_time < CHASSIS_TEST_MOVE_TICKS)
+        // {
+        //     switch (test_step)
+        //     {
+        //     case 0:
+        //         test_command.vx = CHASSIS_TEST_SPEED;
+        //         break;
+        //     case 1:
+        //         test_command.vx = -CHASSIS_TEST_SPEED;
+        //         break;
+        //     case 2:
+        //         test_command.vy = CHASSIS_TEST_SPEED;
+        //         break;
+        //     default:
+        //         test_command.vy = -CHASSIS_TEST_SPEED;
+        //         break;
+        //     }
+        // }
+        test_command.vx = 1.0f;
+        test_command.vy = 0.0f;
+        test_command.wz = 0.0f;
         Chassis::setMode(Chassis::Mode::OpenLoop);
         const auto assisted_command = test_command;
         const auto yaw_command =
